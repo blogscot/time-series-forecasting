@@ -1,0 +1,250 @@
+---
+title: "Time Series"
+author: "Iain Diamond"
+format: html
+---
+
+# Chapter 7
+
+```{r}
+library(fpp3)
+```
+
+## Exercise 1
+
+```{r}
+jan14_vic_elec <- vic_elec |>
+  filter(yearmonth(Time) == yearmonth("2014 Jan")) |>
+  index_by(Date = as_date(Time)) |>
+  summarise(
+    Demand = sum(Demand),
+    Temperature = max(Temperature)
+  )
+jan14_vic_elec
+```
+### a 
+
+Plot the data and find the regression model for Demand with temperature as a predictor variable. Why is there a positive relationship?
+
+```{r}
+autoplot(jan14_vic_elec, scale(Demand), color = "purple") +
+  autolayer(jan14_vic_elec, scale(Temperature), colour = "orange") +
+  labs(y = "Demand (Purple), Temp (Orange)")
+  
+```
+
+```{r}
+jan14_vic_elec |>
+  ggplot(aes(x = Temperature, y = Demand)) +
+  labs(y = "Victoria Half-hourly Electricity Demand",
+       x = "Temperature") +
+  geom_point() +
+  geom_smooth(formula = "y ~ x", method = "lm", se = FALSE)
+```
+
+To a large extent the energy demand tracs the temperature, which suggests australias are using energy to keep themselves cool using air-conditioning and in turn exacerbating the climate crisis.
+
+### b 
+
+Produce a residual plot. Is the model adequate? Are there any outliers or influential observations?
+
+```{r}
+jan14_vic_elec_fit <- jan14_vic_elec |>
+  model(TSLM(Demand ~ Temperature))
+
+jan14_vic_elec_fit |> report()
+```
+
+
+```{r}
+jan14_vic_elec_fit |> gg_tsresiduals()
+```
+The ACF plot how that the residuals have no autocorrelation issue. The histogram has zero mean but it hardly looks bell-shaped.
+
+### c 
+
+Use the model to forecast the electricity demand that you would expect for the next day if the maximum temperature was 15˚C and compare it with the forecast if the with maximum temperature was 35˚C. Do you believe these forecasts?
+
+```{r}
+
+jan14_vic_elec_fit <- jan14_vic_elec |>
+  model(TSLM(Demand ~ Temperature)) 
+
+jan14_vic_elec_fit |>
+  forecast(
+    new_data(jan14_vic_elec, 1) |>
+      mutate(Temperature = 15)
+  ) |>
+  autoplot(jan14_vic_elec) +
+  jan14_vic_elec_fit |>
+  forecast(
+    new_data(jan14_vic_elec, 1) |>
+      mutate(Temperature = 35)
+  ) |> 
+  autolayer(jan14_vic_elec)
+```
+```{r}
+jan14_vic_elec_fit |>
+  forecast(
+    new_data(jan14_vic_elec, 1) |>
+      mutate(Temperature = 15)
+  )
+```
+
+
+
+
+```{r}
+estimates <- jan14_vic_elec_fit |> coef() |> select(estimate)
+intercept <- estimates[1,1]
+slope <- estimates[2,1]
+
+paste0("The regression line is ŷ = ", round(intercept,2), " + ", round(slope,2), "x")
+
+paste("Predicted demand at 15 degrees = ", intercept + 15 * slope)
+paste("Predicted demand at 35 degrees = ", intercept + 35 * slope)
+```
+
+Using the intercept and slope from the fitted model, shown above, the forecast electricity demand for 15 and 35 degrees do correspond with values shown in the time plot.
+
+Just for the sake of curiosity let's examine the residuals against the predictors.
+
+```{r}
+jan14_vic_elec |>
+  left_join(residuals(jan14_vic_elec_fit), by = "Date") |>
+  pivot_longer(Demand:Temperature,
+               names_to = "regressor", values_to = "x") |>
+  ggplot(aes(x = x, y = .resid)) +
+  geom_point() +
+  facet_wrap(. ~ regressor, scales = "free_x") +
+  labs(y = "Residuals", x = "")
+```
+No patterns in these plots. Good stuff!
+
+### d 
+
+Give prediction intervals for your forecasts.
+
+```{r}
+get_prediction_intervals <- function(mean, sd) {
+  tibble("80% interval" = c(qnorm(0.1, mean=mean, sd=sd), 
+                            qnorm(0.9, mean=mean, sd=sd)),
+         "95% interval" = c(qnorm(0.025, mean=mean, sd=sd), 
+         qnorm(0.975, mean=mean, sd=sd)))
+}
+```
+
+
+```{r}
+jan14_vic_elec_fc <- jan14_vic_elec_fit |> 
+  forecast(new_data(jan14_vic_elec, 2) |> 
+             mutate(Temperature = c(15, 35)))
+jan14_vic_elec_fc
+```
+
+```{r}
+jan14_vic_elec_fc  |> 
+  hilo() |> 
+  select(`80%`, `95%`)
+```
+I initially had forgotten about the `hilo` function and calculated the prediction intervals the hard way, see below. The results are close (e.g 117908.1 versus 117979.6) but not exact. My assumption is that the mean and standard deviation that I copied by hand are rounded values which is the root of these discrepancies.
+
+```{r}
+mean = 151398.4
+sd = sqrt(6.8e+08)
+x <- seq(mean-sd*4, mean+sd*4)
+y <- dnorm(x, mean = mean, sd=sd)
+
+plot(x,y, type = "l", lwd = 2, xlab = "x", ylab = "Frequency")
+get_prediction_intervals(mean, sd)
+```
+
+
+```{r}
+mean = 274484
+sd = sqrt(6.4e+08)
+x <- seq(mean-sd*4, mean+sd*4)
+y <- dnorm(x, mean = mean, sd=sd)
+
+plot(x,y, type = "l", lwd = 2, xlab = "x", ylab = "Frequency")
+get_prediction_intervals(mean, sd)
+```
+
+### e 
+
+Plot Demand vs Temperature for all of the available data in vic_elec aggregated to daily total demand and maximum temperature. What does this say about your model?
+
+```{r}
+vic_elec |> 
+  index_by(Date) |> 
+  summarise(totalDemand = sum(Demand), maxTemp = max(Temperature)) |> 
+  ggplot(aes(x = maxTemp, y = totalDemand)) +
+  geom_point() +
+  labs(title = "Australian Energy Usage", 
+       x = "Maximum Temperature (˚C)", 
+       y = "Total Energy Demand (MWh)")
+```
+The plot shows that the relationship between totalDemand and maxTemp is non-linear. As the temperature increases between 10 and 20 degrees energy demand decreases perhaps because consumers use less energy on heating. As the temperature rises above 25 degrees energy usage rises perhaps because consumers are using air-conditioning to cool their homes and offices.
+
+The model uses data taken from January 14 which is the middle of Australia's summer, thus the model doesn't cover the energy demand during the cooler periods of the year.
+
+## Exercise 2
+
+Data set olympic_running contains the winning times (in seconds) in each Olympic Games sprint, middle-distance and long-distance track events from 1896 to 2016.
+
+
+### a
+
+Plot the winning time against the year for each event. Describe the main features of the plot.
+
+```{r}
+olympic_records <- olympic_running |> 
+  drop_na(Time) |> 
+  group_by(Length, Sex) |> 
+  filter(Time == min(Time)) |> 
+  ungroup()
+olympic_records
+```
+```{r}
+#| warning: false
+#| message: false
+
+olympic_records |> 
+  ggplot(aes(y = Year, x = Length, color = Sex)) +
+  geom_point()
+```
+For shorter track distances the women's olympic records haven't been broken in decades, while for longer track distances the records have been broken fairly recently. 
+
+In this particular case, the summarised data above is more informative than the plot.
+
+### b
+
+Fit a regression line to the data for each event. Obviously the winning times have been decreasing, but at what average rate per year?
+
+```{r}
+olympic_events <- olympic_running |> 
+  mutate(Event = paste(Length, Sex)) 
+
+olympic_events |> distinct(Event)
+```
+```{r}
+#| warning: false
+
+olympic_events |> 
+  filter(Event == '10000 women') |>
+  autoplot(Time, show.legend = FALSE)  +
+  geom_smooth(formula = "y ~ x", method = "lm", se = FALSE)
+```
+```{r}
+# jan14_vic_elec_fit <- jan14_vic_elec |>
+#   model(TSLM(Demand ~ Temperature))
+# 
+# jan14_vic_elec_fit |> report()
+# 
+olympic_events_fit <- olympic_events |> 
+  filter(Event == "10000 women") |> 
+  mutate()
+  model(TSLM(Year ~ Time)) 
+# olympic_events_fit |> 
+  # report()
+```

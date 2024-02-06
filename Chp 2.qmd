@@ -1,0 +1,329 @@
+---
+title: "Time Series"
+author: "Iain Diamond"
+date: "25/1/2024"
+format: 
+  html:
+    code-fold: true
+editor: visual
+---
+
+# Chapter 2
+
+For when I get stuck [Taha Ahmad Solutions](https://rstudio-pubs-static.s3.amazonaws.com/1078298_5dd70f8a67734f2aa6f9b79c86b5559d.html)
+
+
+```{r}
+library(fpp3)
+```
+
+## Question 2
+
+Use filter() to find what days corresponded to the peak closing price for each of the four stocks in gafa_stock.
+
+```{r}
+gafa_stock |> 
+  features(Close, features = list(max=max))
+```
+The max values above have been rounded to 2 decimal places so testing for equality isn't possible. Also, I'd like be able to write a single thread line to find the dates but my R-fu is not strong enough yet.
+
+```{r}
+gafa_stock |> filter(Symbol == "AMZN", Close >= 2039.51) |>  pull(Date)
+```
+
+```{r}
+gafa_stock |> filter(Symbol == "FB", Close >= 217.50) |> pull(Date)
+```
+```{r}
+gafa_stock |> filter(Symbol == "GOOG", Close >= 1268.32) |> pull(Date)
+```
+
+```{r}
+gafa_stock |> filter(Symbol == "AAPL", Close >= 232.07) |> pull(Date)
+```
+
+I just noticed that filter accepts commas; I've been using ampersands up until now.
+
+Here, I found this!
+
+```{r}
+gafa_stock |> 
+  select(Close) |> 
+  group_by(Symbol) |> 
+  filter(Close == max(Close))
+```
+
+## Question 3
+
+Download the file tute1.csv from the book website ...
+
+```{r}
+#| message: false
+
+data <- readr::read_csv("data/tute1.csv")
+```
+
+Convert the data to time series
+```{r}
+data |>
+  mutate(Quarter = yearquarter(Quarter)) |>
+  as_tsibble(index = Quarter) -> mytimeseries
+data
+```
+Construct time series plots of each of the three series
+
+```{r}
+mytimeseries |>
+  pivot_longer(-Quarter) |>
+  ggplot(aes(x = Quarter, y = value, colour = name)) +
+  geom_line() +
+  facet_grid(name ~., scales = "free_y")
+```
+
+Alternatively using autoplot.
+
+```{r}
+mytimeseries |>
+  pivot_longer(-Quarter) |>
+  autoplot(.vars = value) +
+  facet_grid(name ~., scales = "free_y")
+```
+
+## Question 4
+
+The USgas package contains data on the demand for natural gas in the US.
+
+```{r}
+library(USgas)
+```
+
+```{r}
+head(us_total)
+```
+
+Create a tsibble from us_total with year as the index and state as the key.
+
+```{r}
+state_timeseries <- us_total |>
+  as_tsibble(index = year, key = state)
+```
+
+Plot the annual natural gas consumption by state for the New England area (comprising the states of Maine, Vermont, New Hampshire, Massachusetts, Connecticut and Rhode Island).
+
+```{r}
+state_timeseries |>
+  filter(state == c("Maine", "Vermont", "New Hampshire", "Massachusetts",
+                   "Connecticut", "Rhode Island")) |>
+  mutate(y = y / 1000) |>
+  autoplot(y) +
+  ylab("Natural Gas Consumption (billion cubic feet)")
+```
+
+## Question 5
+
+Download tourism.xlsx from the book website and read it into R using readxl::read_excel().
+
+```{r}
+data <- readxl::read_excel("data/tourism.xlsx")
+```
+
+```{r}
+tsibble::tourism
+```
+Create a tsibble which is identical to the tourism tsibble from the tsibble package
+
+```{r}
+tourism <- data |>
+  mutate(Quarter = yearquarter(Quarter)) |>
+  as_tsibble(key=c("Region", "State", "Purpose"), index=Quarter)
+tourism
+```
+
+Find what combination of Region and Purpose had the maximum number of overnight trips on average.
+
+```{r}
+tourism |>
+  features(Trips, features=list(mean=mean, max=max, min=min)) |>
+  slice_max(mean)
+```
+
+Create a new tsibble which combines the Purposes and Regions, and just has total trips by State.
+```{r}
+total_trips_state <- tourism |>
+  group_by(State) |>
+  summarise(TotalTrips = sum(Trips))
+total_trips_state
+```
+
+```{r}
+total_trips_state |> autoplot(TotalTrips)
+```
+
+
+## Question 6
+
+Use autoplot(), gg_season() and gg_subseries() to compare the differences between the arrivals from these four countries.
+
+```{r}
+aus_arrivals |> autoplot(Arrivals)
+aus_arrivals |> gg_season(Arrivals)
+aus_arrivals |> gg_subseries(Arrivals)
+```
+
+## Question 7
+
+Explore your chosen retail time series ...
+Can you spot any seasonality, cyclicity and trend?
+
+```{r}
+myseries <- aus_retail |>
+  filter(`Series ID` == sample(aus_retail$`Series ID`, 1))
+
+myseries |> autoplot(Turnover)
+myseries |> gg_season(Turnover)
+myseries |> gg_subseries(Turnover)
+myseries |> gg_lag(Turnover)
+myseries |> ACF(Turnover) |> autoplot()
+```
+
+## Question 8
+
+Use the following graphics functions: autoplot(), gg_season(), gg_subseries(), gg_lag(), ACF() and explore features from the following time series: “Total Private” Employed from us_employment, Bricks from aus_production, Hare from pelt, “H02” Cost from PBS, and Barrels from us_gasoline.
+
+```{r}
+total_private <- us_employment |>
+  filter(Title == 'Total Private')
+
+total_private |> autoplot(Employed)
+total_private |> gg_season(Employed)
+total_private |> gg_subseries(Employed)
+total_private |> gg_lag(Employed)
+total_private |> ACF(Employed) |> autoplot()
+```
+```{r}
+#| warning: false
+
+aus_production |> autoplot(Bricks)
+aus_production |> gg_season(Bricks)
+aus_production |> gg_subseries(Bricks)
+aus_production |> gg_lag(Bricks)
+aus_production |> ACF(Bricks) |> autoplot()
+```
+
+```{r}
+# Hare data is yearly only so gg_season and gg_subseries don't apply
+pelt |> autoplot(Hare)
+pelt |> gg_lag(Hare)
+pelt |> ACF(Hare) |> autoplot()
+```
+```{r}
+pbs_h02 <- PBS |> filter(ATC2 == 'H02')
+pbs_h02 |> autoplot(Cost)
+pbs_h02 |> gg_season(Cost)
+pbs_h02 |> gg_subseries(Cost)
+pbs_h02 |> filter(Type == 'Co-payments' & Concession == 'Concessional') |> gg_lag(Cost)
+pbs_h02 |> filter(Type == 'Co-payments' & Concession == 'Concessional') |> ACF(Cost) |> autoplot()
+```
+
+The easy way
+
+```{r}
+gas_prices_month <- us_gasoline |>
+  group_by_key() |>
+  index_by(month = ~ yearmonth(.)) |>
+  summarise(Barrels = sum(Barrels))
+```
+
+The less easy way
+```{r}
+gas_prices_month2 <- us_gasoline |>
+   as_tibble() |>
+   mutate(Month = yearmonth(Week)) |>
+   select(Month, Barrels) |>
+   group_by(Month) |>
+   summarise(Barrels = sum(Barrels)) |>
+   ungroup() |>
+   as_tsibble(index = Month)
+```
+
+```{r}
+gas_prices_month |> autoplot(Barrels)
+gas_prices_month |> gg_season(Barrels)
+gas_prices_month |> gg_subseries(Barrels)
+gas_prices_month |> gg_lag(Barrels)
+gas_prices_month |> ACF(Barrels) |> autoplot()
+```
+
+## Question 9
+
+The following time plots and ACF plots correspond to four different time series. Your task is to match each time plot in the first row with one of the ACF plots in the second row.
+
+```{r}
+passengers <- AirPassengers |>
+  as_tsibble()
+
+passengers |> autoplot(value)
+passengers |> ACF(value) |> autoplot()
+```
+
+Monthly Air Passengers has a strong positive trend, so you'd expect to see a gradual diminishing highly correlated set of results in the ACF.
+
+```{r}
+lynx_pelts <- pelt |>
+  as_tsibble() |>
+  select(Lynx)
+
+lynx_pelts |> autoplot(Lynx)
+lynx_pelts |> ACF(Lynx) |> autoplot()
+```
+
+Lynx pelts is cyclic not seasonal, whereas monthly deaths is seasonal. 
+
+Matches: 1 B, 2 A, 3 D, 4 C
+
+## Question 10
+
+The aus_livestock data contains the monthly total number of pigs slaughtered in Victoria, Australia, from Jul 1972 to Dec 2018. Use filter() to extract pig slaughters in Victoria between 1990 and 1995. Use autoplot() and ACF() for this data.
+
+```{r}
+aus_livestock |>
+  filter(Animal == "Pigs" &
+           State == "Victoria" &
+           Month >= yearmonth("1990 Jan") &
+           Month <= yearmonth("1996 Jan")) -> slaughtered_pigs_victoria1
+
+slaughtered_pigs_victoria1 |> autoplot(Count)
+slaughtered_pigs_victoria1 |> ACF(Count) |> autoplot()
+```
+How do they differ from white noise? If a longer period of data is used, what difference does it make to the ACF?
+
+```{r}
+aus_livestock |>
+  filter(Animal == "Pigs" &
+           State == "Victoria") -> slaughtered_pigs_victoria2
+
+slaughtered_pigs_victoria2 |> autoplot(Count)
+slaughtered_pigs_victoria2 |> ACF(Count) |> autoplot()
+```
+
+There is stronger autocorrelation in ACF when considering the full time period.
+
+## Question 11
+
+Use the following code to compute the daily changes in Google closing stock prices.
+
+```{r}
+#| warning: false
+
+dgoog <- gafa_stock |>
+  filter(Symbol == "GOOG", year(Date) >= 2018) |>
+  mutate(trading_day = row_number()) |>
+  update_tsibble(key=Symbol, index = trading_day, regular = TRUE) |>
+  mutate(diff = difference(Close))
+
+dgoog |> autoplot(diff)
+dgoog |> ACF(diff) |> autoplot()
+```
+
+Trading only happens on weekdays, so it's necessary to re-index with a continuous variable to avoid gaps in the data.
+ACF is pure white noise. No pattern discerned in data.

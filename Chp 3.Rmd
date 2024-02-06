@@ -1,0 +1,332 @@
+---
+title: 'Forecasting: Principles and Practice (3rd ed)'
+output:
+  rmarkdown::html_document:
+    toc: true
+    toc_float: true
+---
+
+For When I get stuck [Taha Ahmad Solutions](https://rstudio-pubs-static.s3.amazonaws.com/1081744_a3505d5a0eb5463c8fd7c80144a93bfd.html)
+
+```{r}
+# Load the libraries
+library(fpp3)
+```
+
+## Question 1
+
+Consider the GDP information in global_economy. Plot the GDP per capita for each country over time. Which country has the highest GDP per capita? How has this changed over time?
+
+```{r}
+labels <- global_economy |>
+  slice_max(order_by = GDP/Population, n = 1) |>
+  with(annotate('label', label = Country, x = Year, y = 1.05*(GDP/Population - 1)))
+
+labels
+```
+
+```{r}
+global_economy |>
+  autoplot(GDP/Population, show.legend = FALSE , na.rm = TRUE) +
+  labs(title= "GDP per capita", y = "$US") +
+  labels
+```
+
+## Question 2
+
+For each of the following series, make a graph of the data. If transforming seems appropriate, do so and describe the effect.
+
+United States GDP from global_economy.
+
+```{r}
+global_economy |> 
+  filter(Country == 'United States') |> 
+  autoplot(GDP / Population / CPI * 100) +
+  ylab("GDP per Capita (adjusted CPI)")
+```
+
+The US GDP figures have been transformed 2-fold to produce a graph of the GDP per capital adjusted for CPI.
+
+Slaughter of Victorian "Bulls, bullocks and steers" in aus_livestock.
+
+```{r}
+aus_livestock |> 
+  filter(Animal == 'Bulls, bullocks and steers' & State == 'Victoria') |>
+  features(Animal, features = guerrero) |> 
+  pull()
+```
+
+At first glance the graph seems to have a fairely constant variance, suggesting that transforming the data would not yield any benefit. To confirm this the the `guerrero lambda` value was evaluated to confirm this supposition.
+
+```{r}
+aus_livestock |> 
+  filter(Animal == 'Bulls, bullocks and steers' & State == 'Victoria') |> 
+  autoplot(Count)
+```
+
+Victorian Electricity Demand from vic_elec.
+
+```{r}
+lambda <- vic_elec |> 
+  features(Demand, features = guerrero) |> 
+  pull()
+
+lambda
+```
+
+The calculated lambda value is very close to 1 meaning that the shape of the data will not change, but the values will be down-shifted.
+
+```{r}
+vic_elec |> 
+  autoplot(Demand)
+```
+
+```{r}
+vic_elec |> 
+  autoplot(box_cox(Demand, lambda))
+```
+
+While the graph appears largely unchanged the y scale is significantly reduced which I assume will reduce the influence of the huge spikes around year starts 2013 and 2014.
+
+Gas production from aus_production.
+
+```{r}
+lambda <- aus_production |>
+  features(Gas, features = guerrero) |>
+  pull(lambda_guerrero)
+
+aus_production |> 
+  autoplot(box_cox(Gas, lambda))
+```
+
+As per the example given in the book.
+
+## Question 3
+
+Why is a Box-Cox transformation unhelpful for the canadian_gas data?
+
+```{r}
+canadian_gas |> 
+  autoplot(Volume)
+```
+
+```{r}
+lambda <- canadian_gas |> 
+  features(Volume, features = guerrero) |> 
+  pull()
+
+lambda
+```
+
+```{r}
+canadian_gas |> 
+  autoplot(box_cox(Volume, lambda))
+```
+
+The Box Cox transformation is a linear transformation which is incapable of tackling the non-linear (increasing, decreasing) nature of the Canadian gas data.
+
+## Question 4
+
+What Box-Cox transformation would you select for your retail data (from Exercise 7 in Section 2.10)?
+
+```{r}
+set.seed(12345678)
+myseries <- aus_retail |>
+  filter(`Series ID` == sample(aus_retail$`Series ID`,1))
+
+myseries 
+```
+
+```{r}
+myseries |> autoplot(Turnover)
+```
+
+```{r}
+lambda <- myseries |> 
+  features(Turnover, features = guerrero) |> 
+  pull()
+
+lambda
+```
+
+```{r}
+myseries |> autoplot(log(Turnover))
+```
+
+The Box Cox lambda value is close to zero, therefore a log function would serve well as the transform function.
+
+## Question 5
+
+For the following series, find an appropriate Box-Cox transformation in order to stabilise the variance. Tobacco from aus_production, Economy class passengers between Melbourne and Sydney from ansett, and Pedestrian counts at Southern Cross Station from pedestrian.
+
+```{r}
+aus_production |> features(Tobacco, features = guerrero) |> pull()
+```
+
+```{r}
+ansett |> 
+  filter(Airports == 'MEL-SYD' & Class == 'Economy') |> 
+  features(Passengers, features = guerrero) |> 
+  pull()
+```
+
+```{r}
+pedestrian |> 
+  filter(Sensor == 'Southern Cross Station') |> 
+  features(Count, features = guerrero) |> 
+  pull()
+```
+
+## Question 6
+
+Show that a 3×5 MA is equivalent to a 7-term weighted moving average with weights of 0.067, 0.133, 0.200, 0.200, 0.200, 0.133, and 0.067.
+
+Weights of 5 MA are (0.2, 0.2, 0.2, 0.2, 0.2) Weights of 3 MA are (0.33, 0.33, 0.33)
+
+a
+b
+c   1/5(a+b+c+d+e) 
+d   1/5(b+c+d+e+f)    1/3(x+y+z)
+e   1/5(c+d+e+f+g)
+f    
+g
+
+where
+x = (a+b+c+d+e)
+y = (b+c+d+e+f)
+z = (c+d+e+f+g)
+
+3x5 MA = 1/3 . 1/5(a+2b+3c+3d+3e+2f+g) 
+=> weights are 1/15, 2/15, 1/5, 1/5, 1/5, 2/15, 1/15
+
+## Question 7
+
+Consider the last five years of the Gas data from aus_production.
+
+Plot the time series. Can you identify seasonal fluctuations and/or a trend-cycle?
+```{r}
+gas <- tail(aus_production, 5*4) |> select(Gas)
+
+gas |> autoplot(Gas)
+```
+Use classical_decomposition with type=multiplicative to calculate the trend-cycle and seasonal indices.
+```{r}
+gas |>
+  model(
+    classical_decomposition(Gas, type = "multiplicative")
+  ) |>
+  components() -> gas_components
+
+gas_components |>
+  autoplot(na.rm = TRUE) +
+  labs(title = "Classical additive multiplicative of total
+                  AUS gas production")
+```
+Compute and plot the seasonally adjusted data.
+```{r}
+gas_components |> 
+  autoplot(season_adjust)
+```
+
+Change one observation to be an outlier (e.g., add 300 to one observation), and recompute the seasonally adjusted data. What is the effect of the outlier?
+
+```{r}
+gas_outlier1 <- gas
+gas_outlier1[1,1] = gas_outlier1[1,1] + 300
+gas_outlier1 |> autoplot(Gas)
+```
+
+```{r}
+gas_outlier1 |>
+  model(
+    classical_decomposition(Gas, type = "multiplicative")
+  ) |>
+  components() |> 
+  autoplot(season_adjust)
+```
+```{r}
+gas_outlier2 <- gas
+gas_outlier2[10,1] = gas_outlier1[10,1] + 300
+gas_outlier2 |> autoplot(Gas)
+```
+```{r}
+gas_outlier2 |>
+  model(
+    classical_decomposition(Gas, type = "multiplicative")
+  ) |>
+  components() |> 
+  autoplot(season_adjust)
+```
+## Question 8
+
+Recall your retail time series data (from Exercise 7 in Section 2.10). Decompose the series using X-11. Does it reveal any outliers, or unusual features that you had not noticed previously?
+
+```{r}
+set.seed(12345678)
+myseries <- aus_retail |>
+  filter(`Series ID` == sample(aus_retail$`Series ID`,1))
+
+myseries |> autoplot(Turnover)
+```
+
+```{r}
+x11_dcmp <- myseries |>
+  model(x11 = X_13ARIMA_SEATS(Turnover ~ x11())) |>
+  components()
+
+autoplot(x11_dcmp)
+```
+The trend shows an extend bump in turnover around 1996-7 which was evident to some extent in the original time series.
+
+## Question 9
+
+Normally, one would expect the scale of the remainder to be fairly small in comparison with the trend and seasonal scales, which would indicate that the trend window size is too large. 
+
+Overall, around 1992 there must have been a recession followed quickly by a recovery followed by second recession. This disturbance in the labour force figures is not as clear to see in the raw data.
+
+## Question 10
+
+This exercise uses the canadian_gas data (monthly Canadian gas production in billions of cubic metres, January 1960 – February 2005).
+
+Plot the data using autoplot(), gg_subseries() and gg_season() to look at the effect of the changing seasonality over time.
+
+```{r}
+canadian_gas |> autoplot(Volume)
+```
+```{r}
+canadian_gas |> gg_season(Volume)
+```
+
+
+```{r}
+canadian_gas |> gg_subseries(Volume)
+```
+Do an STL decomposition of the data. You will need to choose a seasonal window to allow for the changing shape of the seasonal component.
+
+```{r}
+canadian_gas |>
+  model(
+    STL(Volume ~ trend(window = 7) +
+                   season(window = 7),
+    robust = FALSE)) |>
+  components() -> gas_components
+
+gas_components |> autoplot()
+```
+```{r}
+gas_components |> gg_season(season_year)
+```
+Can you produce a plausible seasonally adjusted series?
+
+```{r}
+gas_components |> autoplot(season_adjust)
+```
+Compare the results with those obtained using SEATS and X-11. How are they different?
+
+```{r}
+canadian_gas |>
+  model(x11 = X_13ARIMA_SEATS(Volume ~ x11())) |>
+  components() |> 
+  autoplot()
+```
+The STL decomposition is additive; the X-13ARIMA-SEATS is multiplicative. The seasonal and irregular variations in the SEATS graph is more pronounced initially.

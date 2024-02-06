@@ -1,0 +1,179 @@
+---
+title: "Time Series"
+author: "Iain Diamond"
+date: "25/1/2024"
+format: 
+  html:
+    code-fold: true
+editor: visual
+---
+
+# Chapter 4 Exercise Solutions
+
+```{r}
+library(fpp3)
+```
+
+```{r}
+acronym <- function(input) {
+  strsplit(input, "[^a-zA-Z']") |>
+    sapply(\(.x) substr(.x, 1, 1)) |>
+    sapply(toupper) |>
+    paste(collapse = "")
+}
+```
+
+```{r}
+PBS |>
+  filter(Type=='Co-payments' & 
+        Concession == 'Concessional') |> 
+  autoplot(Scripts, show.legend = FALSE , na.rm = TRUE)
+```
+
+
+## Question 1
+
+Write a function to compute the mean and standard deviation of a time series, and apply it to the PBS data.
+
+```{r}
+PBS |> 
+  features(Scripts, list(mean=mean, sd=sd)) -> pbs_features
+
+pbs_features |> arrange(-mean) |> head(1) -> values
+values
+```
+
+Plot the series with the highest mean, and the series with the lowest standard deviation.
+
+```{r}
+library(zeallot)
+
+c(concession, type, atc1, atc2) %<-% values[1:4]
+
+PBS |> 
+  filter(ATC1==atc1 & 
+           ATC2 == atc2 & 
+           Type==type & 
+           Concession == concession) |> 
+  autoplot(Scripts)
+```
+
+```{r}
+pbs_features |> arrange(sd) |> head() -> sd_values
+sd_values
+```
+
+There's no point in drawing either of the first two rows. So let's choose the third!
+```{r}
+c(concession, type, atc1, atc2) %<-% sd_values[3,][1:4]
+
+PBS |> 
+  filter(ATC1==atc1 & 
+           ATC2 == atc2 & 
+           Type==type & 
+           Concession == concession) |> 
+  autoplot(Scripts)
+```
+
+## Question 2
+
+Use GGally::ggpairs() to look at the relationships between the STL-based features for the holiday series in the tourism data. Change seasonal_peak_year and seasonal_trough_year to factors, as shown in Figure 4.3.
+
+```{r, warning=FALSE}
+tourism_features <- 
+  tourism |> 
+  filter(Purpose == "Holiday") |>
+  features(Trips, feature_set(pkgs = "feasts")) |> 
+    mutate(
+    State = sapply(State, acronym),
+    seasonal_peak_year = factor(seasonal_peak_year),
+    seasonal_trough_year = factor(seasonal_trough_year),
+  ) |> 
+  select_at(vars(State, contains('trend'), contains("season")))
+tourism_features
+```
+
+```{r}
+tourism_features |> 
+  glimpse()
+```
+
+
+Which is the peak quarter for holidays in each state?
+
+```{r, message=FALSE, warning=FALSE}
+tourism_features |>
+  GGally::ggpairs(mapping = aes(fill = State), columns = c(1, 4)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## Question 3
+
+Use a feature-based approach to look for outlying series in the PBS data. What is unusual about the series you identify as "outliers"
+```{r}
+library(broom)
+```
+
+
+
+```{r message=FALSE, warning=FALSE}
+pbs_features <- PBS |> 
+  features(Scripts, feature_set(pkgs = "feasts"))
+pbs_features
+```
+
+```{r}
+results <- pbs_features |> 
+  select(where(\(.x) all(is.finite(.x)))) |>
+  prcomp(scale = TRUE)
+
+# Note that eigenvectors in R point in the negative direction by default, 
+# so we'll multiply by -1 to reverse the signs.
+
+#reverse the signs
+results$rotation <- -1*results$rotation
+
+#display principal components
+results$rotation
+```
+```{r}
+biplot(results, scale = 0)
+```
+
+#calculate total variance explained by each principal component
+```{r}
+var_explained_df <- data.frame(PC = 1:20, 
+                               var_explained = results$sdev^2 / sum(results$sdev^2))
+var_explained_df
+```
+```{r}
+var_explained_df %>%
+  ggplot(aes(x=PC,y=var_explained, group=1))+
+  geom_point() +
+  geom_line() +
+  labs(title="Scree plot: PCA on scaled data")
+```
+
+
+```{r}
+pcs <- results |> augment(pbs_features)
+pcs
+```
+
+```{r}
+pcs |>
+  ggplot(aes(x = .fittedPC1, y = .fittedPC2, col = ATC2)) +
+  geom_point() +
+  theme(aspect.ratio = 1)
+```
+```{r}
+pcs |> filter(.fittedPC2 > 6)
+```
+```{r}
+PBS |> 
+  filter(ATC1=='C' & 
+           (ATC2 == 'C09' | ATC2 == 'C10') & 
+           Type=='Co-payments' & 
+           Concession == 'Concessional') |> 
+  autoplot(Scripts, show.legend=FALSE)
+```

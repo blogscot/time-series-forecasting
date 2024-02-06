@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.3.450">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Iain Diamond">
+
+<title>Time Series</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="Chp 4_files/libs/clipboard/clipboard.min.js"></script>
+<script src="Chp 4_files/libs/quarto-html/quarto.js"></script>
+<script src="Chp 4_files/libs/quarto-html/popper.min.js"></script>
+<script src="Chp 4_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="Chp 4_files/libs/quarto-html/anchor.min.js"></script>
+<link href="Chp 4_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="Chp 4_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="Chp 4_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="Chp 4_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="Chp 4_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="fullcontent">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Time Series</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>Iain Diamond </p>
+          </div>
+  </div>
+    
+    <div>
+    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">Invalid Date</p>
+    </div>
+  </div>
+  
+    
+  </div>
+  
+
+</header>
+
+<section id="chapter-4-exercise-solutions" class="level1">
+<h1>Chapter 4 Exercise Solutions</h1>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(fpp3)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stderr">
+<pre><code>── Attaching packages ────────────────────────────────────────────── fpp3 0.5 ──</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>✔ tibble      3.2.1     ✔ tsibble     1.1.3
+✔ dplyr       1.1.4     ✔ tsibbledata 0.4.1
+✔ tidyr       1.3.0     ✔ feasts      0.3.1
+✔ lubridate   1.9.3     ✔ fable       0.3.3
+✔ ggplot2     3.4.4     ✔ fabletools  0.3.4</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>── Conflicts ───────────────────────────────────────────────── fpp3_conflicts ──
+✖ lubridate::date()    masks base::date()
+✖ dplyr::filter()      masks stats::filter()
+✖ tsibble::intersect() masks base::intersect()
+✖ tsibble::interval()  masks lubridate::interval()
+✖ dplyr::lag()         masks stats::lag()
+✖ tsibble::setdiff()   masks base::setdiff()
+✖ tsibble::union()     masks base::union()</code></pre>
+</div>
+</div>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>acronym <span class="ot">&lt;-</span> <span class="cf">function</span>(input) {</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">strsplit</span>(input, <span class="st">"[^a-zA-Z']"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">sapply</span>(\(.x) <span class="fu">substr</span>(.x, <span class="dv">1</span>, <span class="dv">1</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">sapply</span>(toupper) <span class="sc">|&gt;</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">paste</span>(<span class="at">collapse =</span> <span class="st">""</span>)</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>PBS <span class="sc">|&gt;</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(Type<span class="sc">==</span><span class="st">'Co-payments'</span> <span class="sc">&amp;</span> </span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>        Concession <span class="sc">==</span> <span class="st">'Concessional'</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">autoplot</span>(Scripts, <span class="at">show.legend =</span> <span class="cn">FALSE</span> , <span class="at">na.rm =</span> <span class="cn">TRUE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<p><img src="Chp-4_files/figure-html/unnamed-chunk-3-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+<section id="question-1" class="level2">
+<h2 class="anchored" data-anchor-id="question-1">Question 1</h2>
+<p>Write a function to compute the mean and standard deviation of a time series, and apply it to the PBS data.</p>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>PBS <span class="sc">|&gt;</span> </span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">features</span>(Scripts, <span class="fu">list</span>(<span class="at">mean=</span>mean, <span class="at">sd=</span>sd)) <span class="ot">-&gt;</span> pbs_features</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>pbs_features <span class="sc">|&gt;</span> <span class="fu">arrange</span>(<span class="sc">-</span>mean) <span class="sc">|&gt;</span> <span class="fu">head</span>(<span class="dv">1</span>) <span class="ot">-&gt;</span> values</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>values</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 1 × 6
+  Concession   Type        ATC1  ATC2     mean      sd
+  &lt;chr&gt;        &lt;chr&gt;       &lt;chr&gt; &lt;chr&gt;   &lt;dbl&gt;   &lt;dbl&gt;
+1 Concessional Co-payments J     J01   831727. 156758.</code></pre>
+</div>
+</div>
+<p>Plot the series with the highest mean, and the series with the lowest standard deviation.</p>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(zeallot)</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="fu">c</span>(concession, type, atc1, atc2) <span class="sc">%&lt;-%</span> values[<span class="dv">1</span><span class="sc">:</span><span class="dv">4</span>]</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>PBS <span class="sc">|&gt;</span> </span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(ATC1<span class="sc">==</span>atc1 <span class="sc">&amp;</span> </span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>           ATC2 <span class="sc">==</span> atc2 <span class="sc">&amp;</span> </span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>           Type<span class="sc">==</span>type <span class="sc">&amp;</span> </span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>           Concession <span class="sc">==</span> concession) <span class="sc">|&gt;</span> </span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">autoplot</span>(Scripts)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<p><img src="Chp-4_files/figure-html/unnamed-chunk-5-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>pbs_features <span class="sc">|&gt;</span> <span class="fu">arrange</span>(sd) <span class="sc">|&gt;</span> <span class="fu">head</span>() <span class="ot">-&gt;</span> sd_values</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>sd_values</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 6 × 6
+  Concession   Type        ATC1  ATC2    mean    sd
+  &lt;chr&gt;        &lt;chr&gt;       &lt;chr&gt; &lt;chr&gt;  &lt;dbl&gt; &lt;dbl&gt;
+1 General      Co-payments R     R     0      0    
+2 General      Co-payments S     S     0      0    
+3 Concessional Safety net  J     J06   0.0208 0.143
+4 General      Safety net  J     J06   0.0119 0.154
+5 General      Co-payments S     S02   0.172  0.427
+6 General      Co-payments A     A15   0.161  0.428</code></pre>
+</div>
+</div>
+<p>There’s no point in drawing either of the first two rows. So let’s choose the third!</p>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">c</span>(concession, type, atc1, atc2) <span class="sc">%&lt;-%</span> sd_values[<span class="dv">3</span>,][<span class="dv">1</span><span class="sc">:</span><span class="dv">4</span>]</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>PBS <span class="sc">|&gt;</span> </span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(ATC1<span class="sc">==</span>atc1 <span class="sc">&amp;</span> </span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>           ATC2 <span class="sc">==</span> atc2 <span class="sc">&amp;</span> </span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>           Type<span class="sc">==</span>type <span class="sc">&amp;</span> </span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>           Concession <span class="sc">==</span> concession) <span class="sc">|&gt;</span> </span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">autoplot</span>(Scripts)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<p><img src="Chp-4_files/figure-html/unnamed-chunk-7-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+<section id="question-2" class="level2">
+<h2 class="anchored" data-anchor-id="question-2">Question 2</h2>
+<p>Use GGally::ggpairs() to look at the relationships between the STL-based features for the holiday series in the tourism data. Change seasonal_peak_year and seasonal_trough_year to factors, as shown in Figure 4.3.</p>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>tourism_features <span class="ot">&lt;-</span> </span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  tourism <span class="sc">|&gt;</span> </span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(Purpose <span class="sc">==</span> <span class="st">"Holiday"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">features</span>(Trips, <span class="fu">feature_set</span>(<span class="at">pkgs =</span> <span class="st">"feasts"</span>)) <span class="sc">|&gt;</span> </span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">State =</span> <span class="fu">sapply</span>(State, acronym),</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">seasonal_peak_year =</span> <span class="fu">factor</span>(seasonal_peak_year),</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">seasonal_trough_year =</span> <span class="fu">factor</span>(seasonal_trough_year),</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select_at</span>(<span class="fu">vars</span>(State, <span class="fu">contains</span>(<span class="st">'trend'</span>), <span class="fu">contains</span>(<span class="st">"season"</span>)))</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>tourism_features</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 76 × 7
+   State trend_strength seasonal_strength_year seasonal_peak_year
+   &lt;chr&gt;          &lt;dbl&gt;                  &lt;dbl&gt; &lt;fct&gt;             
+ 1 SA             0.554                  0.619 1                 
+ 2 SA             0.528                  0.296 2                 
+ 3 NT             0.381                  0.832 3                 
+ 4 WA             0.732                  0.308 3                 
+ 5 WA             0.626                  0.393 1                 
+ 6 WA             0.702                  0.876 3                 
+ 7 WA             0.848                  0.875 1                 
+ 8 V              0.412                  0.337 1                 
+ 9 NT             0.325                  0.626 3                 
+10 SA             0.266                  0.194 2                 
+# ℹ 66 more rows
+# ℹ 3 more variables: seasonal_trough_year &lt;fct&gt;, season_acf1 &lt;dbl&gt;,
+#   season_pacf &lt;dbl&gt;</code></pre>
+</div>
+</div>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>tourism_features <span class="sc">|&gt;</span> </span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">glimpse</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Rows: 76
+Columns: 7
+$ State                  &lt;chr&gt; "SA", "SA", "NT", "WA", "WA", "WA", "WA", "V", …
+$ trend_strength         &lt;dbl&gt; 0.5542186, 0.5275212, 0.3814929, 0.7324603, 0.6…
+$ seasonal_strength_year &lt;dbl&gt; 0.6187292, 0.2958543, 0.8319783, 0.3076353, 0.3…
+$ seasonal_peak_year     &lt;fct&gt; 1, 2, 3, 3, 1, 3, 1, 1, 3, 2, 2, 2, 1, 3, 1, 2,…
+$ seasonal_trough_year   &lt;fct&gt; 2, 1, 1, 0, 0, 1, 3, 3, 1, 3, 3, 0, 0, 1, 0, 3,…
+$ season_acf1            &lt;dbl&gt; 0.35115135, 0.20804204, 0.72858887, 0.40013769,…
+$ season_pacf            &lt;dbl&gt; 0.329447490, 0.180734186, 0.495122568, 0.208157…</code></pre>
+</div>
+</div>
+<p>Which is the peak quarter for holidays in each state?</p>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>tourism_features <span class="sc">|&gt;</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>  GGally<span class="sc">::</span><span class="fu">ggpairs</span>(<span class="at">mapping =</span> <span class="fu">aes</span>(<span class="at">fill =</span> State), <span class="at">columns =</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">4</span>)) <span class="sc">+</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">axis.text.x =</span> <span class="fu">element_text</span>(<span class="at">angle =</span> <span class="dv">45</span>, <span class="at">hjust =</span> <span class="dv">1</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<p><img src="Chp-4_files/figure-html/unnamed-chunk-10-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+<section id="question-3" class="level2">
+<h2 class="anchored" data-anchor-id="question-3">Question 3</h2>
+<p>Use a feature-based approach to look for outlying series in the PBS data. What is unusual about the series you identify as “outliers”</p>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(broom)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>pbs_features <span class="ot">&lt;-</span> PBS <span class="sc">|&gt;</span> </span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">features</span>(Scripts, <span class="fu">feature_set</span>(<span class="at">pkgs =</span> <span class="st">"feasts"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Error in ar.burg.default(x, aic = aic, order.max = order.max, na.action = na.action,  : 
+  zero-variance series
+Error in ar.burg.default(x, aic = aic, order.max = order.max, na.action = na.action,  : 
+  zero-variance series</code></pre>
+</div>
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>pbs_features</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 336 × 53
+   Concession   Type        ATC1  ATC2  trend_strength seasonal_strength_year
+   &lt;chr&gt;        &lt;chr&gt;       &lt;chr&gt; &lt;chr&gt;          &lt;dbl&gt;                  &lt;dbl&gt;
+ 1 Concessional Co-payments A     A01            0.845                  0.918
+ 2 Concessional Co-payments A     A02            0.970                  0.943
+ 3 Concessional Co-payments A     A03            0.956                  0.931
+ 4 Concessional Co-payments A     A04            0.790                  0.930
+ 5 Concessional Co-payments A     A05            0.950                  0.888
+ 6 Concessional Co-payments A     A06            0.952                  0.955
+ 7 Concessional Co-payments A     A07            0.804                  0.920
+ 8 Concessional Co-payments A     A09            0.900                  0.901
+ 9 Concessional Co-payments A     A10            0.975                  0.952
+10 Concessional Co-payments A     A11            0.963                  0.881
+# ℹ 326 more rows
+# ℹ 47 more variables: seasonal_peak_year &lt;dbl&gt;, seasonal_trough_year &lt;dbl&gt;,
+#   spikiness &lt;dbl&gt;, linearity &lt;dbl&gt;, curvature &lt;dbl&gt;, stl_e_acf1 &lt;dbl&gt;,
+#   stl_e_acf10 &lt;dbl&gt;, acf1 &lt;dbl&gt;, acf10 &lt;dbl&gt;, diff1_acf1 &lt;dbl&gt;,
+#   diff1_acf10 &lt;dbl&gt;, diff2_acf1 &lt;dbl&gt;, diff2_acf10 &lt;dbl&gt;, season_acf1 &lt;dbl&gt;,
+#   pacf5 &lt;dbl&gt;, diff1_pacf5 &lt;dbl&gt;, diff2_pacf5 &lt;dbl&gt;, season_pacf &lt;dbl&gt;,
+#   zero_run_mean &lt;dbl&gt;, nonzero_squared_cv &lt;dbl&gt;, zero_start_prop &lt;dbl&gt;, …</code></pre>
+</div>
+</div>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>results <span class="ot">&lt;-</span> pbs_features <span class="sc">|&gt;</span> </span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(<span class="fu">where</span>(\(.x) <span class="fu">all</span>(<span class="fu">is.finite</span>(.x)))) <span class="sc">|&gt;</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">prcomp</span>(<span class="at">scale =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Note that eigenvectors in R point in the negative direction by default, </span></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a><span class="co"># so we'll multiply by -1 to reverse the signs.</span></span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a><span class="co">#reverse the signs</span></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>results<span class="sc">$</span>rotation <span class="ot">&lt;-</span> <span class="sc">-</span><span class="dv">1</span><span class="sc">*</span>results<span class="sc">$</span>rotation</span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a><span class="co">#display principal components</span></span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a>results<span class="sc">$</span>rotation</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>                             PC1           PC2          PC3         PC4
+seasonal_peak_year    0.22277649 -0.0720211517  0.011592230  0.13601227
+seasonal_trough_year  0.13320335  0.2997330785  0.203399305 -0.31900636
+spikiness             0.20698712 -0.2309994507 -0.338019094 -0.26457561
+linearity             0.24985284 -0.2717039574 -0.204084704 -0.15327167
+curvature            -0.04119771 -0.0169549855  0.070719397 -0.06777438
+zero_run_mean        -0.32451478 -0.2591717796  0.004023903 -0.15574448
+zero_start_prop      -0.19299925 -0.0944708316 -0.176561008 -0.00282862
+zero_end_prop        -0.36668784 -0.2584706182 -0.068073726 -0.14131461
+ndiffs                0.05316066 -0.2311834032  0.351491679 -0.05360777
+nsdiffs               0.23893102  0.2553573753  0.048898007 -0.24238349
+shift_level_max       0.24598588 -0.2082711351 -0.272987665 -0.18196052
+shift_level_index     0.17673017 -0.3134956902  0.203016553  0.31069137
+shift_var_max         0.23796400 -0.1748760580 -0.364839328 -0.27827762
+shift_var_index       0.25778072 -0.2550161817  0.127145620  0.31162524
+shift_kl_max         -0.16209477 -0.0812711480  0.103585193 -0.18799146
+shift_kl_index        0.25173163 -0.2353902760  0.074288145  0.30642571
+n_crossing_points     0.10263813  0.3538595260 -0.239739262  0.18394084
+longest_flat_spot    -0.28157331 -0.2966703457  0.161100684 -0.13599238
+coef_hurst            0.18290291 -0.0001866818  0.343713906 -0.34637177
+stat_arch_lm          0.24696566 -0.0585835780  0.391147367 -0.26469892
+                              PC5         PC6          PC7          PC8
+seasonal_peak_year   -0.015598953  0.06612146 -0.803897578 -0.070493734
+seasonal_trough_year  0.032974525 -0.07272456  0.272198819  0.243886253
+spikiness             0.237413798 -0.03984228  0.042053487 -0.036380294
+linearity             0.315834981  0.08864546 -0.031716623 -0.019784153
+curvature             0.780388528  0.19198980  0.021370571 -0.029820877
+zero_run_mean        -0.081942497  0.12058997 -0.067624102  0.435577433
+zero_start_prop      -0.136013480  0.51184702  0.216465365 -0.579429615
+zero_end_prop        -0.098699147  0.17936628 -0.017015542  0.212629527
+ndiffs                0.004855423 -0.16207197 -0.081997534 -0.302656851
+nsdiffs              -0.011231876  0.19355414 -0.243221474  0.110241447
+shift_level_max      -0.375816557 -0.16004404 -0.004399878 -0.005263894
+shift_level_index    -0.001130665 -0.03975904  0.220362948  0.050573050
+shift_var_max        -0.068975045 -0.11604988  0.120238930  0.043896598
+shift_var_index      -0.024927522  0.03637634  0.102243215  0.033041535
+shift_kl_max          0.078392454 -0.56151559 -0.007801581 -0.391672350
+shift_kl_index        0.023571618  0.04767469  0.218046576  0.165512586
+n_crossing_points     0.068124601 -0.24792752  0.140733429 -0.049875327
+longest_flat_spot     0.083999027 -0.28288197 -0.082665549  0.054473572
+coef_hurst           -0.175855002  0.25841944  0.068206334 -0.238996681
+stat_arch_lm         -0.049994824  0.06141892  0.080238590  0.097641646
+                              PC9        PC10        PC11        PC12
+seasonal_peak_year    0.206385967 -0.04765304  0.20741673  0.02134862
+seasonal_trough_year  0.267413202  0.13544447 -0.12430872  0.19332432
+spikiness            -0.067947441  0.04331571 -0.11474971 -0.03194405
+linearity             0.042175617  0.13578632 -0.15920307  0.17571979
+curvature            -0.020870185 -0.11746941  0.25363533 -0.01754406
+zero_run_mean         0.049324452  0.28679832  0.31339732 -0.03202993
+zero_start_prop       0.225958665  0.09543939 -0.04759226  0.02433005
+zero_end_prop         0.119905245  0.26004137  0.11618146 -0.03203291
+ndiffs               -0.542559808  0.51794804 -0.14938660 -0.15155154
+nsdiffs               0.316166729  0.36651150 -0.40511037 -0.19875673
+shift_level_max      -0.041954108 -0.15747747  0.06909665  0.07513232
+shift_level_index     0.237033951 -0.04119080 -0.20426623  0.19733664
+shift_var_max        -0.057070281 -0.01452122  0.13898382 -0.09835190
+shift_var_index       0.162124811  0.32301620  0.18022260  0.44377774
+shift_kl_max          0.511107320  0.04666480  0.19714186 -0.05596555
+shift_kl_index        0.204366045 -0.04690220  0.03736908 -0.74965234
+n_crossing_points    -0.008510483  0.43743754  0.38491250 -0.09574015
+longest_flat_spot     0.096196651 -0.13163366 -0.29863550 -0.05963232
+coef_hurst            0.043451438 -0.08255265  0.28121469 -0.15604621
+stat_arch_lm         -0.123152916 -0.18102174  0.28860054  0.10708134
+                             PC13         PC14         PC15        PC16
+seasonal_peak_year    0.145355654 -0.182590943  0.211235614 -0.18542166
+seasonal_trough_year  0.077442694 -0.247632086  0.435049693 -0.07425664
+spikiness             0.150125036 -0.416516374 -0.318273282  0.03622474
+linearity            -0.665498441 -0.028196460  0.137883371 -0.07835886
+curvature             0.221041186  0.243886207  0.211219315  0.04313714
+zero_run_mean        -0.053488747 -0.090712402 -0.123249915 -0.08954981
+zero_start_prop       0.092899509  0.148406680  0.104532682 -0.21481253
+zero_end_prop         0.005177585 -0.019780108  0.126254538 -0.07706537
+ndiffs                0.071018103 -0.009116325  0.126303767 -0.09861422
+nsdiffs               0.112078393  0.354936262 -0.227112850  0.03199053
+shift_level_max      -0.109656620  0.317985670  0.407861156  0.02794472
+shift_level_index     0.248576160 -0.224460974 -0.004969748 -0.47355458
+shift_var_max         0.504097466  0.106208039 -0.057902498 -0.02595082
+shift_var_index       0.109769781  0.190081906 -0.099241617  0.53872593
+shift_kl_max         -0.149589657  0.029558165 -0.254740997 -0.01115507
+shift_kl_index       -0.146465769  0.034246702  0.087056981  0.05411982
+n_crossing_points     0.008157312  0.022155027  0.215911305 -0.21983570
+longest_flat_spot     0.186756494  0.199349441  0.319367400  0.14401659
+coef_hurst           -0.010250787 -0.374299513  0.119962315  0.33257737
+stat_arch_lm         -0.102999555  0.365490774 -0.276666149 -0.42576667
+                            PC17         PC18          PC19         PC20
+seasonal_peak_year    0.20932229 -0.066868552 -0.0008574552 -0.024759224
+seasonal_trough_year  0.30103595 -0.275651271  0.1239254327 -0.150281985
+spikiness             0.25014397  0.328003976  0.4077461666 -0.052569799
+linearity            -0.02919973 -0.043262665 -0.3677646410  0.079690648
+curvature            -0.25086775 -0.064856988  0.1914692659 -0.060987049
+zero_run_mean        -0.13782277  0.058501429 -0.1093998502 -0.578856671
+zero_start_prop       0.24429209  0.027047692 -0.0143932328 -0.219533794
+zero_end_prop         0.00821351 -0.087723589  0.2496302398  0.705560754
+ndiffs               -0.01379646 -0.198809521  0.0926632466 -0.075237291
+nsdiffs              -0.24354254  0.133543561  0.0360088176  0.012861429
+shift_level_max      -0.29376869  0.075265603  0.4305824825 -0.164216648
+shift_level_index    -0.43049615  0.127518970 -0.0317308718  0.049476848
+shift_var_max        -0.00284802 -0.349677307 -0.4831514672  0.100200726
+shift_var_index       0.17954217  0.009138253  0.0328258653  0.007431215
+shift_kl_max         -0.08665764 -0.191552597  0.0892355275 -0.017260864
+shift_kl_index        0.20590496 -0.109919278  0.0809859050 -0.050287267
+n_crossing_points     0.01031718  0.464677910 -0.1206902323  0.098429922
+longest_flat_spot     0.25315710  0.484250683 -0.2758404727 -0.005168186
+coef_hurst           -0.27686068  0.257250204 -0.1869708815  0.117601721
+stat_arch_lm          0.32608908  0.164351531  0.0323224069  0.105707052</code></pre>
+</div>
+</div>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="fu">biplot</span>(results, <span class="at">scale =</span> <span class="dv">0</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<p><img src="Chp-4_files/figure-html/unnamed-chunk-14-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+<p>#calculate total variance explained by each principal component</p>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>var_explained_df <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(<span class="at">PC =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">20</span>, </span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>                               <span class="at">var_explained =</span> results<span class="sc">$</span>sdev<span class="sc">^</span><span class="dv">2</span> <span class="sc">/</span> <span class="fu">sum</span>(results<span class="sc">$</span>sdev<span class="sc">^</span><span class="dv">2</span>))</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>var_explained_df</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>   PC var_explained
+1   1   0.193223989
+2   2   0.155332937
+3   3   0.115084263
+4   4   0.102123065
+5   5   0.066253635
+6   6   0.062594131
+7   7   0.049090797
+8   8   0.039582052
+9   9   0.037186351
+10 10   0.030049332
+11 11   0.022899877
+12 12   0.022030566
+13 13   0.019748188
+14 14   0.019203050
+15 15   0.017044706
+16 16   0.013514274
+17 17   0.011603804
+18 18   0.010418132
+19 19   0.007378107
+20 20   0.005638743</code></pre>
+</div>
+</div>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>var_explained_df <span class="sc">%&gt;%</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x=</span>PC,<span class="at">y=</span>var_explained, <span class="at">group=</span><span class="dv">1</span>))<span class="sc">+</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>() <span class="sc">+</span></span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>() <span class="sc">+</span></span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title=</span><span class="st">"Scree plot: PCA on scaled data"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<p><img src="Chp-4_files/figure-html/unnamed-chunk-16-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb29"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>pcs <span class="ot">&lt;-</span> results <span class="sc">|&gt;</span> <span class="fu">augment</span>(pbs_features)</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>pcs</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 336 × 74
+   .rownames Concession  Type  ATC1  ATC2  trend_strength seasonal_strength_year
+   &lt;chr&gt;     &lt;chr&gt;       &lt;chr&gt; &lt;chr&gt; &lt;chr&gt;          &lt;dbl&gt;                  &lt;dbl&gt;
+ 1 1         Concession… Co-p… A     A01            0.845                  0.918
+ 2 2         Concession… Co-p… A     A02            0.970                  0.943
+ 3 3         Concession… Co-p… A     A03            0.956                  0.931
+ 4 4         Concession… Co-p… A     A04            0.790                  0.930
+ 5 5         Concession… Co-p… A     A05            0.950                  0.888
+ 6 6         Concession… Co-p… A     A06            0.952                  0.955
+ 7 7         Concession… Co-p… A     A07            0.804                  0.920
+ 8 8         Concession… Co-p… A     A09            0.900                  0.901
+ 9 9         Concession… Co-p… A     A10            0.975                  0.952
+10 10        Concession… Co-p… A     A11            0.963                  0.881
+# ℹ 326 more rows
+# ℹ 67 more variables: seasonal_peak_year &lt;dbl&gt;, seasonal_trough_year &lt;dbl&gt;,
+#   spikiness &lt;dbl&gt;, linearity &lt;dbl&gt;, curvature &lt;dbl&gt;, stl_e_acf1 &lt;dbl&gt;,
+#   stl_e_acf10 &lt;dbl&gt;, acf1 &lt;dbl&gt;, acf10 &lt;dbl&gt;, diff1_acf1 &lt;dbl&gt;,
+#   diff1_acf10 &lt;dbl&gt;, diff2_acf1 &lt;dbl&gt;, diff2_acf10 &lt;dbl&gt;, season_acf1 &lt;dbl&gt;,
+#   pacf5 &lt;dbl&gt;, diff1_pacf5 &lt;dbl&gt;, diff2_pacf5 &lt;dbl&gt;, season_pacf &lt;dbl&gt;,
+#   zero_run_mean &lt;dbl&gt;, nonzero_squared_cv &lt;dbl&gt;, zero_start_prop &lt;dbl&gt;, …</code></pre>
+</div>
+</div>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>pcs <span class="sc">|&gt;</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> .fittedPC1, <span class="at">y =</span> .fittedPC2, <span class="at">col =</span> ATC2)) <span class="sc">+</span></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>() <span class="sc">+</span></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">aspect.ratio =</span> <span class="dv">1</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<p><img src="Chp-4_files/figure-html/unnamed-chunk-18-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb32"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>pcs <span class="sc">|&gt;</span> <span class="fu">filter</span>(.fittedPC2 <span class="sc">&gt;</span> <span class="dv">6</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 2 × 74
+  .rownames Concession   Type  ATC1  ATC2  trend_strength seasonal_strength_year
+  &lt;chr&gt;     &lt;chr&gt;        &lt;chr&gt; &lt;chr&gt; &lt;chr&gt;          &lt;dbl&gt;                  &lt;dbl&gt;
+1 25        Concessional Co-p… C     C09            0.985                  0.919
+2 26        Concessional Co-p… C     C10            0.987                  0.927
+# ℹ 67 more variables: seasonal_peak_year &lt;dbl&gt;, seasonal_trough_year &lt;dbl&gt;,
+#   spikiness &lt;dbl&gt;, linearity &lt;dbl&gt;, curvature &lt;dbl&gt;, stl_e_acf1 &lt;dbl&gt;,
+#   stl_e_acf10 &lt;dbl&gt;, acf1 &lt;dbl&gt;, acf10 &lt;dbl&gt;, diff1_acf1 &lt;dbl&gt;,
+#   diff1_acf10 &lt;dbl&gt;, diff2_acf1 &lt;dbl&gt;, diff2_acf10 &lt;dbl&gt;, season_acf1 &lt;dbl&gt;,
+#   pacf5 &lt;dbl&gt;, diff1_pacf5 &lt;dbl&gt;, diff2_pacf5 &lt;dbl&gt;, season_pacf &lt;dbl&gt;,
+#   zero_run_mean &lt;dbl&gt;, nonzero_squared_cv &lt;dbl&gt;, zero_start_prop &lt;dbl&gt;,
+#   zero_end_prop &lt;dbl&gt;, lambda_guerrero &lt;dbl&gt;, ...26 &lt;dbl&gt;, kpss_stat &lt;dbl&gt;, …</code></pre>
+</div>
+</div>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb34"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a>PBS <span class="sc">|&gt;</span> </span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(ATC1<span class="sc">==</span><span class="st">'C'</span> <span class="sc">&amp;</span> </span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>           (ATC2 <span class="sc">==</span> <span class="st">'C09'</span> <span class="sc">|</span> ATC2 <span class="sc">==</span> <span class="st">'C10'</span>) <span class="sc">&amp;</span> </span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a>           Type<span class="sc">==</span><span class="st">'Co-payments'</span> <span class="sc">&amp;</span> </span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a>           Concession <span class="sc">==</span> <span class="st">'Concessional'</span>) <span class="sc">|&gt;</span> </span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">autoplot</span>(Scripts, <span class="at">show.legend=</span><span class="cn">FALSE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<p><img src="Chp-4_files/figure-html/unnamed-chunk-20-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    text: function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+  function tippyHover(el, contentFn) {
+    const config = {
+      allowHTML: true,
+      content: contentFn,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start'
+    };
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      return note.innerHTML;
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+</body></html>
