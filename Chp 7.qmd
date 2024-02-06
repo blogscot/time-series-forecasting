@@ -222,29 +222,133 @@ In this particular case, the summarised data above is more informative than the 
 Fit a regression line to the data for each event. Obviously the winning times have been decreasing, but at what average rate per year?
 
 ```{r}
-olympic_events <- olympic_running |> 
-  mutate(Event = paste(Length, Sex)) 
-
-olympic_events |> distinct(Event)
+olympic_running |> mutate(Event = paste(Length, Sex)) |> distinct(Event)
 ```
 ```{r}
 #| warning: false
-
-olympic_events |> 
-  filter(Event == '10000 women') |>
+olympic_running |>
   autoplot(Time, show.legend = FALSE)  +
-  geom_smooth(formula = "y ~ x", method = "lm", se = FALSE)
+  geom_smooth(formula = "y ~ x", method = "lm", se = FALSE) +
+  labs(title = "Olympic Games times")
 ```
 ```{r}
-# jan14_vic_elec_fit <- jan14_vic_elec |>
-#   model(TSLM(Demand ~ Temperature))
-# 
-# jan14_vic_elec_fit |> report()
-# 
-olympic_events_fit <- olympic_events |> 
-  filter(Event == "10000 women") |> 
-  mutate()
-  model(TSLM(Year ~ Time)) 
-# olympic_events_fit |> 
-  # report()
+
+# Let's fit all the events all at once!
+olympic_events_fit <- olympic_running |> 
+  mutate(olympics_num = row_number()) |> 
+  update_tsibble(key = c(Length, Sex), index = olympics_num, regular = TRUE) |> 
+  model(TSLM(Year ~ Time))
+
+# We can examine individual event models by filtering
+olympic_events_fit |> 
+  filter(Length == "10000", Sex == 'men') |> 
+  report()
 ```
+```{r}
+olympic_events_fit |> 
+  filter(Length == "10000", Sex == 'women') |> 
+  report()
+```
+
+```{r}
+#| warning: false
+
+olympic_running |> 
+  filter(Length == "10000", Sex == "men") |>
+  autoplot(Time, show.legend = FALSE)  +
+  geom_smooth(formula = "y ~ x", method = "lm", se = FALSE) +
+  labs(title = "Men's 10000m Olympic Games times")
+```
+
+
+```{r}
+olympic_10000_mens_event_fit <- olympic_events_fit |> 
+  filter(Length == "10000", Sex == 'men')
+
+estimates <- olympic_10000_mens_event_fit |> coef() |> select(estimate)
+intercept <- estimates[1,1]
+slope <- estimates[2,1]
+
+paste0("The regression line is ŷ = ", round(intercept,2), " + ", round(slope,2), "x")
+```
+
+```{r}
+#| warning: false
+
+olympic_running |> 
+  filter(Length == "10000", Sex == "women") |>
+  autoplot(Time, show.legend = FALSE)  +
+  geom_smooth(formula = "y ~ x", method = "lm", se = FALSE) +
+  labs(title = "Women's 10000m Olympic Games times")
+```
+
+```{r}
+olympic_10000_womens_event_fit <- olympic_events_fit |> 
+  filter(Length == "10000", Sex == 'women')
+
+estimates <- olympic_10000_womens_event_fit |> coef() |> select(estimate)
+intercept <- estimates[1,1]
+slope <- estimates[2,1]
+
+paste0("The regression line is ŷ = ", round(intercept,2), " + ", round(slope,2), "x")
+```
+
+Men started competing in the Olympics 10,000m at the start of the 20th century. Their times are, perhaps surprisingly, slower than the women's times who only began competing far more recently in the mid 1980s. Clearly, the culture of modern athleticism has advanced greatly since the start of the 20th century for both sexes. 
+
+Due to the initially relatively slow men's Olympic times at 10,000m distances their average rate of improvement is greater, at 0.34, than that of the women's average rate of improvement, at 0.23.
+
+### c
+
+Plot the residuals against the year. What does this indicate about the suitability of the fitted lines?
+
+```{r}
+#| warning: false
+
+olympic_10000_mens_event_fit |> gg_tsresiduals()
+```
+
+The residuals for the men's 10,000m are fairly small, there is no significant autocorrelation but there is a negitive bias in the results. Is this the median figure of -2.172?
+```{r}
+#| warning: false
+
+olympic_10000_womens_event_fit |> gg_tsresiduals()
+```
+The women's 10,000m residuals have fewer points; they are very small indicating that the model has a good accuracy. There is no appreciable autocorrelation. Lastly, the histogram is very roughly normal (it's hard with few so few data points) and there is a small negitive bias: -0.9872.
+
+### d
+
+Predict the winning time for each race in the 2020 Olympics. Give a prediction interval for your forecasts. What assumptions have you made in these calculations?
+
+```{r}
+olympic_events_trends_fit <- olympic_running |> 
+  model(TSLM(Time ~ trend()))
+
+olympic_events_trends_fc <- olympic_events_trends_fit |> forecast()
+olympic_events_trends_fc
+```
+
+```{r}
+men_10000 <- olympic_running |>
+  filter(Length == "10000", Sex == "men")
+
+olympic_events_trends_fc |>
+    filter(Length == "10000", Sex == 'men') |> 
+  autoplot(men_10000)
+
+olympic_events_trends_fc |> 
+  filter(Length == "10000", Sex == 'men') |> 
+  hilo()
+```
+```{r}
+women_10000 <- olympic_running |>
+  filter(Length == "10000", Sex == "women")
+
+olympic_events_trends_fc |>
+    filter(Length == "10000", Sex == 'women') |> 
+  autoplot(women_10000)
+
+olympic_events_trends_fc |> 
+  filter(Length == "10000", Sex == 'women') |> 
+  hilo()
+```
+Both these predictions are linear meaning that according to the model eventually mankind will be able to travel distances in zero seconds, which is impossible. Hence, better models should be used to capture the point where human performance start to plateau.
