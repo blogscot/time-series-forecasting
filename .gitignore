@@ -6,3 +6,4 @@
 Chp*files/
 .ipynb_checkpoints/
 .DS_Store
+*.html
