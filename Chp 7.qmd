@@ -8,7 +8,19 @@ format: html
 
 ```{r}
 library(fpp3)
+library(plotly)
 ```
+
+```{r}
+ us_data <- us_change |> 
+  select(Consumption, Income, Savings) |> 
+  filter_index("1980 Q1" ~ "2000 Q1")
+
+autoplot(us_data, scale(Consumption), color = "Black") +
+  autolayer(us_data, scale(Income), color = "Orange") +
+  autolayer(us_data, scale(Savings), color = "Green")
+```
+
 
 ## Exercise 1
 
@@ -34,15 +46,29 @@ autoplot(jan14_vic_elec, scale(Demand), color = "purple") +
 ```
 
 ```{r}
-jan14_vic_elec |>
+g <- jan14_vic_elec |>
   ggplot(aes(x = Temperature, y = Demand)) +
   labs(y = "Victoria Half-hourly Electricity Demand",
        x = "Temperature") +
   geom_point() +
   geom_smooth(formula = "y ~ x", method = "lm", se = FALSE)
+
+ggplotly(g)
+```
+```{r}
+
 ```
 
-To a large extent the energy demand tracs the temperature, which suggests australias are using energy to keep themselves cool using air-conditioning and in turn exacerbating the climate crisis.
+
+
+To a large extent the energy demand tracks the temperature, which suggests australians are using energy to keep themselves cool using air-conditioning and in turn exacerbating the climate crisis.
+
+```{r}
+jan14_vic_elec |> 
+  CCF(Demand, Temperature) |> autoplot() +
+  labs(y = "Cross Correlation Demand versus Temperature")
+```
+As an aside: this cross-correlation plot shows that there is a strong cross correlation for lag -1 and lag 1, that is, the energy consumption yesterday is similar to today, and equally the energy demand tomorrow will be similar to today.
 
 ### b 
 
@@ -60,6 +86,21 @@ jan14_vic_elec_fit |> report()
 jan14_vic_elec_fit |> gg_tsresiduals()
 ```
 The ACF plot how that the residuals have no autocorrelation issue. The histogram has zero mean but it hardly looks bell-shaped.
+
+```{r}
+library(rstatix)
+
+residuals <- augment(jan14_vic_elec_fit) |> 
+  pull(.resid)
+
+shapiro_test(residuals)
+```
+The null hypothesis for the Shapiro-Wilks test is that the data is normally distribution. As the p-value is not less than the value of 0.05 we do not reject the null hypothesis. Hence the data distribution is in fact normal.
+
+```{r}
+car::qqPlot(residuals)
+```
+
 
 ### c 
 
@@ -186,7 +227,7 @@ vic_elec |>
 ```
 The plot shows that the relationship between totalDemand and maxTemp is non-linear. As the temperature increases between 10 and 20 degrees energy demand decreases perhaps because consumers use less energy on heating. As the temperature rises above 25 degrees energy usage rises perhaps because consumers are using air-conditioning to cool their homes and offices.
 
-The model uses data taken from January 14 which is the middle of Australia's summer, thus the model doesn't cover the energy demand during the cooler periods of the year.
+The model uses data taken from January 14 which is the middle of Australia's summer, thus the model doesn't cover the energy demand during the cooler periods of the year, hence it's possible to fit a linear model to the data.
 
 ## Exercise 2
 
@@ -209,13 +250,17 @@ olympic_records
 #| warning: false
 #| message: false
 
-olympic_records |> 
-  ggplot(aes(y = Year, x = Length, color = Sex)) +
-  geom_point()
+g <- olympic_records |> 
+  mutate(Event = paste(Length, Sex)) |> 
+  ggplot(aes(y = Year, x = Time, colour = Event)) +
+  geom_point() +
+  scale_y_continuous(breaks=seq(1980, 2016, 4)) +
+  labs(title = "New Olympic Records (Running)", x = "Time (s)")
+ggplotly(g)
 ```
-For shorter track distances the women's olympic records haven't been broken in decades, while for longer track distances the records have been broken fairly recently. 
+For shorter track distances the women's Olympic records haven't been broken in decades, while for the longer track distances records have been broken fairly recently. 
 
-In this particular case, the summarised data above is more informative than the plot.
+The plot is now interactive and the y-axis increments by 4 to match the Olympic event years. 
 
 ### b
 
