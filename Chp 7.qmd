@@ -4,23 +4,14 @@ author: "Iain Diamond"
 format: html
 ---
 
+For when I get stuck [Dan McSwain Solutions](https://rstudio-pubs-static.s3.amazonaws.com/834769_a7e343c5024745eeb06f9c6031d0c6b6.html)
+
 # Chapter 7
 
 ```{r}
 library(fpp3)
 library(plotly)
 ```
-
-```{r}
- us_data <- us_change |> 
-  select(Consumption, Income, Savings) |> 
-  filter_index("1980 Q1" ~ "2000 Q1")
-
-autoplot(us_data, scale(Consumption), color = "Black") +
-  autolayer(us_data, scale(Income), color = "Orange") +
-  autolayer(us_data, scale(Savings), color = "Green")
-```
-
 
 ## Exercise 1
 
@@ -34,7 +25,8 @@ jan14_vic_elec <- vic_elec |>
   )
 jan14_vic_elec
 ```
-### a 
+
+### a
 
 Plot the data and find the regression model for Demand with temperature as a predictor variable. Why is there a positive relationship?
 
@@ -55,11 +47,10 @@ g <- jan14_vic_elec |>
 
 ggplotly(g)
 ```
+
 ```{r}
 
 ```
-
-
 
 To a large extent the energy demand tracks the temperature, which suggests australians are using energy to keep themselves cool using air-conditioning and in turn exacerbating the climate crisis.
 
@@ -68,9 +59,10 @@ jan14_vic_elec |>
   CCF(Demand, Temperature) |> autoplot() +
   labs(y = "Cross Correlation Demand versus Temperature")
 ```
+
 As an aside: this cross-correlation plot shows that there is a strong cross correlation for lag -1 and lag 1, that is, the energy consumption yesterday is similar to today, and equally the energy demand tomorrow will be similar to today.
 
-### b 
+### b
 
 Produce a residual plot. Is the model adequate? Are there any outliers or influential observations?
 
@@ -81,10 +73,10 @@ jan14_vic_elec_fit <- jan14_vic_elec |>
 jan14_vic_elec_fit |> report()
 ```
 
-
 ```{r}
 jan14_vic_elec_fit |> gg_tsresiduals()
 ```
+
 The ACF plot how that the residuals have no autocorrelation issue. The histogram has zero mean but it hardly looks bell-shaped.
 
 ```{r}
@@ -95,14 +87,14 @@ residuals <- augment(jan14_vic_elec_fit) |>
 
 shapiro_test(residuals)
 ```
+
 The null hypothesis for the Shapiro-Wilks test is that the data is normally distribution. As the p-value is not less than the value of 0.05 we do not reject the null hypothesis. Hence the data distribution is in fact normal.
 
 ```{r}
 car::qqPlot(residuals)
 ```
 
-
-### c 
+### c
 
 Use the model to forecast the electricity demand that you would expect for the next day if the maximum temperature was 15˚C and compare it with the forecast if the with maximum temperature was 35˚C. Do you believe these forecasts?
 
@@ -124,6 +116,7 @@ jan14_vic_elec_fit |>
   ) |> 
   autolayer(jan14_vic_elec)
 ```
+
 ```{r}
 jan14_vic_elec_fit |>
   forecast(
@@ -131,9 +124,6 @@ jan14_vic_elec_fit |>
       mutate(Temperature = 15)
   )
 ```
-
-
-
 
 ```{r}
 estimates <- jan14_vic_elec_fit |> coef() |> select(estimate)
@@ -160,9 +150,10 @@ jan14_vic_elec |>
   facet_wrap(. ~ regressor, scales = "free_x") +
   labs(y = "Residuals", x = "")
 ```
+
 No patterns in these plots. Good stuff!
 
-### d 
+### d
 
 Give prediction intervals for your forecasts.
 
@@ -174,7 +165,6 @@ get_prediction_intervals <- function(mean, sd) {
          qnorm(0.975, mean=mean, sd=sd)))
 }
 ```
-
 
 ```{r}
 jan14_vic_elec_fc <- jan14_vic_elec_fit |> 
@@ -188,6 +178,7 @@ jan14_vic_elec_fc  |>
   hilo() |> 
   select(`80%`, `95%`)
 ```
+
 I initially had forgotten about the `hilo` function and calculated the prediction intervals the hard way, see below. The results are close (e.g 117908.1 versus 117979.6) but not exact. My assumption is that the mean and standard deviation that I copied by hand are rounded values which is the root of these discrepancies.
 
 ```{r}
@@ -200,7 +191,6 @@ plot(x,y, type = "l", lwd = 2, xlab = "x", ylab = "Frequency")
 get_prediction_intervals(mean, sd)
 ```
 
-
 ```{r}
 mean = 274484
 sd = sqrt(6.4e+08)
@@ -211,7 +201,7 @@ plot(x,y, type = "l", lwd = 2, xlab = "x", ylab = "Frequency")
 get_prediction_intervals(mean, sd)
 ```
 
-### e 
+### e
 
 Plot Demand vs Temperature for all of the available data in vic_elec aggregated to daily total demand and maximum temperature. What does this say about your model?
 
@@ -225,6 +215,7 @@ vic_elec |>
        x = "Maximum Temperature (˚C)", 
        y = "Total Energy Demand (MWh)")
 ```
+
 The plot shows that the relationship between totalDemand and maxTemp is non-linear. As the temperature increases between 10 and 20 degrees energy demand decreases perhaps because consumers use less energy on heating. As the temperature rises above 25 degrees energy usage rises perhaps because consumers are using air-conditioning to cool their homes and offices.
 
 The model uses data taken from January 14 which is the middle of Australia's summer, thus the model doesn't cover the energy demand during the cooler periods of the year, hence it's possible to fit a linear model to the data.
@@ -232,7 +223,6 @@ The model uses data taken from January 14 which is the middle of Australia's sum
 ## Exercise 2
 
 Data set olympic_running contains the winning times (in seconds) in each Olympic Games sprint, middle-distance and long-distance track events from 1896 to 2016.
-
 
 ### a
 
@@ -246,6 +236,7 @@ olympic_records <- olympic_running |>
   ungroup()
 olympic_records
 ```
+
 ```{r}
 #| warning: false
 #| message: false
@@ -258,9 +249,10 @@ g <- olympic_records |>
   labs(title = "New Olympic Records (Running)", x = "Time (s)")
 ggplotly(g)
 ```
-For shorter track distances the women's Olympic records haven't been broken in decades, while for the longer track distances records have been broken fairly recently. 
 
-The plot is now interactive and the y-axis increments by 4 to match the Olympic event years. 
+For shorter track distances the women's Olympic records haven't been broken in decades, while for the longer track distances records have been broken fairly recently.
+
+The plot is now interactive and the y-axis increments by 4 to match the Olympic event years.
 
 ### b
 
@@ -269,6 +261,7 @@ Fit a regression line to the data for each event. Obviously the winning times ha
 ```{r}
 olympic_running |> mutate(Event = paste(Length, Sex)) |> distinct(Event)
 ```
+
 ```{r}
 #| warning: false
 olympic_running |>
@@ -276,6 +269,7 @@ olympic_running |>
   geom_smooth(formula = "y ~ x", method = "lm", se = FALSE) +
   labs(title = "Olympic Games times")
 ```
+
 ```{r}
 
 # Let's fit all the events all at once!
@@ -289,6 +283,7 @@ olympic_events_fit |>
   filter(Length == "10000", Sex == 'men') |> 
   report()
 ```
+
 ```{r}
 olympic_events_fit |> 
   filter(Length == "10000", Sex == 'women') |> 
@@ -304,7 +299,6 @@ olympic_running |>
   geom_smooth(formula = "y ~ x", method = "lm", se = FALSE) +
   labs(title = "Men's 10000m Olympic Games times")
 ```
-
 
 ```{r}
 olympic_10000_mens_event_fit <- olympic_events_fit |> 
@@ -338,7 +332,7 @@ slope <- estimates[2,1]
 paste0("The regression line is ŷ = ", round(intercept,2), " + ", round(slope,2), "x")
 ```
 
-Men started competing in the Olympics 10,000m at the start of the 20th century. Their times are, perhaps surprisingly, slower than the women's times who only began competing far more recently in the mid 1980s. Clearly, the culture of modern athleticism has advanced greatly since the start of the 20th century for both sexes. 
+Men started competing in the Olympics 10,000m at the start of the 20th century. Their times are, perhaps surprisingly, slower than the women's times who only began competing far more recently in the mid 1980s. Clearly, the culture of modern athleticism has advanced greatly since the start of the 20th century for both sexes.
 
 Due to the initially relatively slow men's Olympic times at 10,000m distances their average rate of improvement is greater, at 0.34, than that of the women's average rate of improvement, at 0.23.
 
@@ -353,11 +347,13 @@ olympic_10000_mens_event_fit |> gg_tsresiduals()
 ```
 
 The residuals for the men's 10,000m are fairly small, there is no significant autocorrelation but there is a negitive bias in the results. Is this the median figure of -2.172?
+
 ```{r}
 #| warning: false
 
 olympic_10000_womens_event_fit |> gg_tsresiduals()
 ```
+
 The women's 10,000m residuals have fewer points; they are very small indicating that the model has a good accuracy. There is no appreciable autocorrelation. Lastly, the histogram is very roughly normal (it's hard with few so few data points) and there is a small negitive bias: -0.9872.
 
 ### d
@@ -384,6 +380,7 @@ olympic_events_trends_fc |>
   filter(Length == "10000", Sex == 'men') |> 
   hilo()
 ```
+
 ```{r}
 women_10000 <- olympic_running |>
   filter(Length == "10000", Sex == "women")
@@ -396,4 +393,32 @@ olympic_events_trends_fc |>
   filter(Length == "10000", Sex == 'women') |> 
   hilo()
 ```
+
 Both these predictions are linear meaning that according to the model eventually mankind will be able to travel distances in zero seconds, which is impossible. Hence, better models should be used to capture the point where human performance start to plateau.
+
+## Exercise 3
+
+An elasticity coefficient is the ratio of the percentage change in the forecast variable (y) to the percentage change in the predictor variable (x). Mathematically, the elasticity is defined as (dy/dx)×(x/y). Consider the log-log model,
+
+$$
+log \ y=β_0+β_1 \ log \ x+ε
+$$
+
+Express y as a function of x and show that the coefficient $β_1$ is the elasticity coefficient.
+
+Taking the derivative of both sides with respect to $x$:
+
+$$
+\frac{d}{dx} \ log \ y = \beta_1 \frac{d}{dx} \ log \ x
+$$ 
+Which becomes:
+
+$$
+\frac{1}{y} \ \frac{dy}{dx} = \beta_1 \frac{1}{x}
+$$
+hence, we can write:
+
+$$
+\beta_1 = \frac{dy}{dx} \ \frac{x}{y} 
+$$
+which is the elasticity coefficient.
