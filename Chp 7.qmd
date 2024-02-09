@@ -48,10 +48,6 @@ g <- jan14_vic_elec |>
 ggplotly(g)
 ```
 
-```{r}
-
-```
-
 To a large extent the energy demand tracks the temperature, which suggests australians are using energy to keep themselves cool using air-conditioning and in turn exacerbating the climate crisis.
 
 ```{r}
@@ -422,3 +418,149 @@ $$
 \beta_1 = \frac{dy}{dx} \ \frac{x}{y} 
 $$
 which is the elasticity coefficient.
+
+## Exercise 4
+
+The data set souvenirs concerns the monthly sales figures of a shop which opened in January 1987 and sells gifts, souvenirs, and novelties. The shop is situated on the wharf at a beach resort town in Queensland, Australia. The sales volume varies with the seasonal population of tourists. There is a large influx of visitors to the town at Christmas and for the local surfing festival, held every March since 1988. Over time, the shop has expanded its premises, range of products, and staff.
+
+
+```{r}
+souvenirs |> head()
+```
+
+
+### a
+
+Produce a time plot of the data and describe the patterns in the graph. Identify any unusual or unexpected fluctuations in the time series.
+
+```{r}
+souvenirs |> autoplot(Sales) +
+  geom_smooth(formula = "y ~ x", method = "loess", se = FALSE)
+```
+
+The time plot shows that since around mid 1990 the shop has started to experience exponential growth.
+
+## b
+
+Explain why it is necessary to take logarithms of these data before fitting a model.
+
+One of the assumptions of linear modelling is that the variance is constant. Clearly this is not the case with the sales data. Using a log transformation of the data helps reduce this invariance issue.
+
+I could have used the Box-Cox transformation to remodel the data, however, as the lambda value is very close to zero it's easier to use a log transformation directly.
+
+```{r}
+lambda <- souvenirs |>
+  features(Sales, features = guerrero) |>
+  pull(lambda_guerrero)
+lambda
+```
+
+
+```{r}
+value <- 100
+# log transformation
+paste(log(value))
+# box-cox transformation
+paste((value^lambda - 1) / lambda)
+```
+It's not exact but it's close enough.
+
+```{r}
+souvenirs |> autoplot(log(Sales))
+```
+
+After the log transformation the variance of the sales data now appears constant.
+
+```{r}
+dcmp <- souvenirs |>
+  model(
+    STL(log(Sales) ~ trend(window = 4) + season(window = 12),
+    robust = FALSE)) |>
+  components() 
+dcmp |> autoplot()
+```
+
+Transforming the sales data has helped regularise STL decomposition: the remainder resembles faint white noise; season_year has a regular pattern and the trend gradually increases linearly. 
+
+If you use STL decomposition to forecast future sales we end up with the following plot. Notice, how the point forecast continues the same basic pattern as the earlier sales data. The confidence intervals, however, are quite extreme.
+
+```{r}
+fit_dcmp <- souvenirs |>
+  model(stlf = decomposition_model(
+    STL(log(Sales) ~ trend(window = 4) + season(window = 12), robust = FALSE),
+    NAIVE(season_adjust)
+  ))
+
+fit_dcmp |>
+  forecast() |>
+  autoplot(souvenirs)
+```
+
+
+## c
+
+Fit a regression model to the logarithms of these sales data with a linear trend, seasonal dummies and a “surfing festival” dummy variable.
+
+```{r}
+new_data <- souvenirs |>
+  mutate(festival = ifelse(month(Month) == 3 & year(Month) > 1987, 1, 0))
+new_data
+```
+
+```{r}
+fit <- new_data |>
+  model(TSLM(log(Sales) ~ trend() + season() + festival))
+report(fit)
+```
+
+Including the festival dummy variable increased the `Adjusted R-squared` figure from 0.9447 to 0.9487.
+
+To produce a forecast with the surfing festival dummy variable you need to provide new data covering the time period which includes values for the dummy variable.
+```{r}
+festival_dates <- rep(0,36)
+festival_dates[seq(3,36,12)] = 1
+x <- seq(as.Date("1994-01-01"), as.Date("1996-12-31"), by = "1 month")
+festival_data <- tsibble(Month = yearmonth(x), festival = dates, index = Month)
+festival_data
+```
+
+
+```{r}
+forecast(fit, festival_data) |> 
+  autoplot(souvenirs)
+```
+
+```{r}
+fit |> gg_tsresiduals()
+```
+
+## d
+
+Plot the residuals against time and against the fitted values. Do these plots reveal any problems with the model?
+
+Using this `left_join` method shows the transformed residuals - the scale is between -0.4 to 0.4.
+
+```{r}
+souvenirs |>
+  left_join(residuals(fit), by = "Month") |>
+  ggplot(aes(x = Month, y = .resid)) +
+  geom_point() 
+```
+Alternatively, this way shows the untransformed residuals. Scale -10,000 to 10,000. The transformed residuals appear random whereas there's an obvious pattern in the untransformed residuals.
+
+```{r}
+augment(fit) |> 
+  ggplot(aes(x=Month)) +
+  geom_point(aes( y=.resid))
+```
+
+The fitted values against the residuals looks to be very clustered with a handful of outliers which would indicate that the modelling assumptions have not been satisfied.
+
+```{r}
+augment(fit) |> 
+  ggplot(aes(x=.fitted)) +
+  geom_point(aes(y=.resid))
+```
+## e
+
+Do boxplots of the residuals for each month. Does this reveal any problems with the model?
