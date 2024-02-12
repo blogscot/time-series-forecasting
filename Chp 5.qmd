@@ -289,7 +289,7 @@ aug |> features(.innov, box_pierce, lag = 10)
 ```{r}
 aug |> features(.innov, ljung_box, lag = 10)
 ```
-Both Box-Pierce and Ljung-Box p-values are above the arbitrary threshold of 5% which means that we can reject the null hypothosis: these data are indistiguishable from white noise.
+Both Box-Pierce and Ljung-Box p-values are above the arbitrary threshold of 5% which means that we can reject the null hypothesis: these data are indistiguishable from white noise.
 
 ```{r}
 #| warning: false
