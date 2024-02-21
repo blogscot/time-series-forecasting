@@ -48,7 +48,7 @@ g <- jan14_vic_elec |>
 ggplotly(g)
 ```
 
-To a large extent the energy demand tracks the temperature, which suggests australians are using energy to keep themselves cool using air-conditioning and in turn exacerbating the climate crisis.
+To a large extent the energy demand tracks the temperature, which suggests Australians are using energy to keep themselves cool using air-conditioning and in turn exacerbating the climate crisis.
 
 ```{r}
 jan14_vic_elec |> 
@@ -73,7 +73,7 @@ jan14_vic_elec_fit |> report()
 jan14_vic_elec_fit |> gg_tsresiduals()
 ```
 
-The ACF plot how that the residuals have no autocorrelation issue. The histogram has zero mean but it hardly looks bell-shaped.
+The residuals show an upward trend suggesting that the model doesn't fully explain all the data. The ACF plot shows that the residuals have no autocorrelation issues. The histogram has zero mean but it hardly looks bell-shaped.
 
 ```{r}
 library(rstatix)
@@ -84,7 +84,9 @@ residuals <- augment(jan14_vic_elec_fit) |>
 shapiro_test(residuals)
 ```
 
-The null hypothesis for the Shapiro-Wilks test is that the data is normally distribution. As the p-value is not less than the value of 0.05 we do not reject the null hypothesis. Hence the data distribution is in fact normal.
+The null hypothesis for the Shapiro-Wilks test is that the data is normally distribution. If the p-value is less than the threshold value 0.05 (e.g. a 5% chance) we reject the null hypothesis.
+
+As the p-value is not less than the value of 0.05 we do not reject the null hypothesis. Hence the data distribution is in fact normal.
 
 ```{r}
 car::qqPlot(residuals)
@@ -429,7 +431,7 @@ souvenirs |> head()
 ```
 
 
-### a
+## a
 
 Produce a time plot of the data and describe the patterns in the graph. Identify any unusual or unexpected fluctuations in the time series.
 
@@ -525,9 +527,8 @@ festival_data
 
 
 ```{r}
-souvenirs_fc <-  forecast(fit, festival_data) 
-souvenirs_fc |> 
-  autoplot(souvenirs)
+souvenirs_fc <- forecast(fit, festival_data) 
+souvenirs_fc |> autoplot(souvenirs)
 ```
 
 ```{r}

@@ -1,0 +1,146 @@
+---
+title: "Chp 8.qmd"
+author: "Iain Diamond"
+format: html
+---
+
+# Chapter 8
+
+```{r}
+library(fpp3)
+library(zeallot)
+```
+## Exercise 1
+
+Consider the the number of pigs slaughtered in Victoria, available in the aus_livestock dataset.
+
+```{r}
+vic_pigs <- aus_livestock |> 
+  filter(Animal == 'Pigs', State == 'Victoria')
+vic_pigs
+```
+
+
+```{r}
+vic_pigs |> autoplot(Count)
+```
+
+## a
+
+Use the ETS() function to estimate the equivalent model for simple exponential smoothing. Find the optimal values of α and ℓ0, and generate forecasts for the next four months.
+
+```{r}
+fit_pigs <- vic_pigs |> 
+  model(ETS(Count ~ error("A") + trend("N") + season("N")))
+report(fit_pigs)
+```
+alpha = 0.3579401
+l[0] =  95487.5
+
+```{r}
+fc_pigs <- fit_pigs |> forecast(h = 4) 
+fc_pigs
+
+fc_pigs |>
+  autoplot(vic_pigs)+
+  labs(title="Victoria Pigs slaughtered",
+       y="Pigs")
+```
+
+## b
+
+Compute a 95% prediction interval for the first forecast using ^y±1.96s where s is the standard deviation of the residuals. Compare your interval with the interval produced by R.
+
+```{r}
+params <- fc_pigs |> hilo() |> select(.mean, `95%`)
+params
+```
+
+Using the mean value from the first forecast the prediction interval is:
+
+```{r}
+mean <- params$.mean[1]
+sd <-  sqrt(87480760)
+paste0("[", round(qnorm(0.025, mean, sd),2),", ", round(qnorm(0.975, mean, sd),2), "]")
+```
+
+In the book, the multiplier factor for 95% is given as 1.96 which is a convenient approximation. Note, the 95% confidence interval actually lies between the 2.5% and 97.5% values. Also, `qnorm` returns the value of x (here the number of pigs slaughtered) for the given area under the probability curve.
+
+The values match almost exactly.
+
+
+## Exercise 2
+
+Write your own function to implement simple exponential smoothing. The function should take arguments y (the time series), alpha (the smoothing parameter α) and level (the initial level ℓ0). It should return the forecast of the next observation in the series. Does it give the same forecast as ETS()?
+
+
+```{r}
+algeria_economy <- global_economy |>
+  filter(Country == "Algeria") |> 
+  select(Exports)
+
+algeria_fit <- algeria_economy |> 
+  model(ETS(Exports ~ error("A") + trend("N") + season("N")))
+report(algeria_fit)
+```
+
+
+```{r}
+augment(algeria_fit) |> pull(.fitted)
+```
+```{r}
+simple_ets <- function(y, alpha, level) {
+  initial = level
+  levels <- sapply(y, \(observation) {
+    # <<- operator assigns new level
+    level <<- alpha * observation + (1 - alpha) * level
+  })
+  c(initial, head(levels,-1))
+}
+
+params <- tidy(algeria_fit)
+c(alpha, level) %<-% params$estimate
+simple_ets(algeria_economy$Exports, alpha, level)
+```
+`simple_ets` produces the same fitted values as ETS, see also section 8.1 Algeria exports
+
+Exercise 3
+
+Modify your function from the previous exercise to return the sum of squared errors rather than the forecast of the next observation. Then use the optim() function to find the optimal values of α and ℓ0. Do you get the same values as the ETS() function?
+
+```{r}
+glance(algeria_fit) |> select(MSE)
+```
+```{r}
+algeria_economy <- global_economy |>
+  filter(Country == "Algeria") |> 
+  select(Exports)
+
+params <- tidy(algeria_fit)
+
+c(alpha, level) %<-% params$estimate
+
+simple_ets2 <- function(y, pars) {
+  c(alpha, level) %<-% pars
+  fitted <- simple_ets(y, alpha, level)
+  error <- y - fitted
+  sum(error^2) / length(fitted)
+}
+
+simple_ets2(y=algeria_economy$Exports, pars=params$estimate)
+```
+
+Which is the same as the MSE shown above.
+
+```{r}
+optParam <- optim(par = c(0.5, algeria_economy$Exports[1]), 
+                  y = algeria_economy$Exports, 
+                  fn = simple_ets2)
+
+print(paste("Alpha:", optParam$par[1], "l0:", optParam$par[2]))
+```
+
+```{r}
+report(algeria_fit)
+```
+The values obtained from `optim` are very close to those from `report`.
