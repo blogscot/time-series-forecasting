@@ -10,6 +10,7 @@ format: html
 library(fpp3)
 library(zeallot)
 ```
+
 ## Exercise 1
 
 Consider the the number of pigs slaughtered in Victoria, available in the aus_livestock dataset.
@@ -19,7 +20,6 @@ vic_pigs <- aus_livestock |>
   filter(Animal == 'Pigs', State == 'Victoria')
 vic_pigs
 ```
-
 
 ```{r}
 vic_pigs |> autoplot(Count)
@@ -34,8 +34,8 @@ fit_pigs <- vic_pigs |>
   model(ETS(Count ~ error("A") + trend("N") + season("N")))
 report(fit_pigs)
 ```
-alpha = 0.3579401
-l[0] =  95487.5
+
+$alpha$ = 0.3221247 and %l_0% = 100646.6
 
 ```{r}
 fc_pigs <- fit_pigs |> forecast(h = 4) 
@@ -49,7 +49,7 @@ fc_pigs |>
 
 ## b
 
-Compute a 95% prediction interval for the first forecast using ^y±1.96s where s is the standard deviation of the residuals. Compare your interval with the interval produced by R.
+Compute a 95% prediction interval for the first forecast using \^y±1.96s where s is the standard deviation of the residuals. Compare your interval with the interval produced by R.
 
 ```{r}
 params <- fc_pigs |> hilo() |> select(.mean, `95%`)
@@ -68,11 +68,9 @@ In the book, the multiplier factor for 95% is given as 1.96 which is a convenien
 
 The values match almost exactly.
 
-
 ## Exercise 2
 
 Write your own function to implement simple exponential smoothing. The function should take arguments y (the time series), alpha (the smoothing parameter α) and level (the initial level ℓ0). It should return the forecast of the next observation in the series. Does it give the same forecast as ETS()?
-
 
 ```{r}
 algeria_economy <- global_economy |>
@@ -84,10 +82,10 @@ algeria_fit <- algeria_economy |>
 report(algeria_fit)
 ```
 
-
 ```{r}
 augment(algeria_fit) |> pull(.fitted)
 ```
+
 ```{r}
 simple_ets <- function(y, alpha, level) {
   initial = level
@@ -102,15 +100,17 @@ params <- tidy(algeria_fit)
 c(alpha, level) %<-% params$estimate
 simple_ets(algeria_economy$Exports, alpha, level)
 ```
+
 `simple_ets` produces the same fitted values as ETS, see also section 8.1 Algeria exports
 
-Exercise 3
+## Exercise 3
 
 Modify your function from the previous exercise to return the sum of squared errors rather than the forecast of the next observation. Then use the optim() function to find the optimal values of α and ℓ0. Do you get the same values as the ETS() function?
 
 ```{r}
 glance(algeria_fit) |> select(MSE)
 ```
+
 ```{r}
 algeria_economy <- global_economy |>
   filter(Country == "Algeria") |> 
@@ -143,4 +143,142 @@ print(paste("Alpha:", optParam$par[1], "l0:", optParam$par[2]))
 ```{r}
 report(algeria_fit)
 ```
+
 The values obtained from `optim` are very close to those from `report`.
+
+## Exercise 5
+
+Data set global_economy contains the annual Exports from many countries. Select one country to analyse.
+
+```{r}
+french_economy <- global_economy |> filter(Country == "France")
+french_economy
+```
+
+## a
+
+Plot the Exports series and discuss the main features of the data.
+
+```{r}
+french_economy |> 
+  autoplot(Exports)
+```
+
+The French economy has seen a few periods of contraction and expansion. Most obvious is the sharp retraction and subsequent recovery in 2008 due to the global financial crisis. The overall trend is positive.
+
+```{r}
+  french_economy |> 
+    mutate(`Per Capita` = scale(Exports / Population),
+           `Against CPI` = scale(Exports / CPI),
+           Population = scale(Population)
+           ) |> 
+  select(Year, Population, `Per Capita`, `Against CPI`) |> 
+  pivot_longer(cols = -Year, names_to = "Exports") |> 
+  autoplot(value) +
+  labs(title = "French Exports", y = "Scaled value")
+  
+```
+
+The graph of French exports shows that exports per capita has been broadly keeping pace with the rise in population. In contrast, French exports in real terms fell during the middle part of the twentieth century and has been stagnating since the late 1980s.
+
+## b
+
+Use an ETS(A,N,N) model to forecast the series, and plot the forecasts.
+
+```{r}
+french_fit <- french_economy |> 
+  model(ETS(Exports ~ error("A") + trend("N") + season("N")))
+
+french_fc <- french_fit |> forecast(h = 10) 
+
+french_fc |>
+  autoplot(french_economy)+
+  labs(title="French Economy Forecast (Simple Exponential Smoothing)", y="Exports")
+```
+
+## c
+
+Compute the RMSE values for the training data.
+
+```{r}
+accuracy(french_fit)$RMSE
+```
+
+## d
+
+Compare the results to those from an ETS(A,A,N) model. (Remember that the trended model is using one more parameter than the simpler model.) Discuss the merits of the two forecasting methods for this data set.
+
+```{r}
+french_fit2 <- french_economy |> 
+  model(ETS(Exports ~ error("A") + trend("A") + season("N")))
+
+french_fc2 <- french_fit2 |> forecast(h = 10) 
+
+french_fc2 |>
+  autoplot(french_economy)+
+  labs(title="French Economy Forecast (Holt's trend method)", y="Exports")
+```
+
+```{r}
+accuracy(french_fit2)$RMSE
+```
+
+Comparing the two models, Simple Exponential Smoothing is suitable for data that has no trend. Clearly, for the case of the French economy this is not the case, hence, Holt's linear trend method will produce superior forecast results.
+
+## e
+
+Compare the forecasts from both methods. Which do you think is best?
+
+Judging by the graphs the trend method clearly gives more intuitive forecast results.
+
+```{r}
+french_economy |> 
+  stretch_tsibble(.init = 10)  |>
+  model(
+    SES = ETS(Exports ~ error("A") + trend("N") + season("N")),
+    Holt = ETS(Exports ~ error("A") + trend("A") + season("N")),
+    Damped = ETS(Exports ~ error("A") + trend("Ad") + season("N")),
+        ) |>
+    forecast(h = 1) |>
+    accuracy(french_economy) 
+```
+
+Unexpectedly, if we compare the one-step accuracy of the two methods (and throw in the damping method just out of curiosity) we find that SES performs the best! What?!
+
+## f
+
+Calculate a 95% prediction interval for the first forecast for each model, using the RMSE values and assuming normal errors. Compare your intervals with those produced using R.
+
+```{r}
+fc <- fit|> forecast(h = 1) 
+
+fc |>
+  hilo() |> 
+  select(`95%`)
+```
+
+From [Stats for Data Science](https://dtkaplan.github.io/SDS-book/index.html#table-of-contents):
+
+> It turns out that constructing a prediction interval using ± RMSE provides a roughly 67% interval: about 67% of individual error magnitudes are within ± RMSE of the model output. In order to produce an interval covering roughly 95% of the error magnitudes, the prediction interval is usually calculated using the model output ± 2 × RMSE.
+
+```{r}
+SES_RMSE <- accuracy(french_fit)$RMSE
+
+french_fit |> 
+     forecast(h = 1) |> 
+     mutate(low = .mean - 2 * SES_RMSE, 
+            high = .mean + 2 * SES_RMSE) |> 
+  as_tibble() |> 
+  select(.model, low, high)
+```
+
+```{r}
+HOLT_RMSE <- accuracy(french_fit2)$RMSE
+
+french_fit2 |> 
+     forecast(h = 1) |> 
+     mutate(low = .mean - 2 * HOLT_RMSE, 
+            high = .mean + 2 * HOLT_RMSE) |> 
+  as_tibble() |> 
+  select(.model, low, high)
+```
