@@ -250,11 +250,15 @@ Unexpectedly, if we compare the one-step accuracy of the two methods (and throw 
 Calculate a 95% prediction interval for the first forecast for each model, using the RMSE values and assuming normal errors. Compare your intervals with those produced using R.
 
 ```{r}
+fit <- french_economy |> 
+  model(
+    SES = ETS(Exports ~ error("A") + trend("N") + season("N")),
+    Holt = ETS(Exports ~ error("A") + trend("A") + season("N")),
+) 
+
 fc <- fit|> forecast(h = 1) 
 
-fc |>
-  hilo() |> 
-  select(`95%`)
+fc |> hilo() |> select(`95%`)
 ```
 
 From [Stats for Data Science](https://dtkaplan.github.io/SDS-book/index.html#table-of-contents):
