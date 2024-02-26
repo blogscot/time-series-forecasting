@@ -1,7 +1,9 @@
 ---
 title: "Chp 8.qmd"
 author: "Iain Diamond"
-format: html
+format: 
+  html:
+    code-fold: true
 ---
 
 # Chapter 8
@@ -25,9 +27,7 @@ vic_pigs
 vic_pigs |> autoplot(Count)
 ```
 
-## a
-
-Use the ETS() function to estimate the equivalent model for simple exponential smoothing. Find the optimal values of α and ℓ0, and generate forecasts for the next four months.
+### a Use the ETS() function to estimate the equivalent model for simple exponential smoothing. Find the optimal values of α and ℓ0, and generate forecasts for the next four months.
 
 ```{r}
 fit_pigs <- vic_pigs |> 
@@ -47,9 +47,7 @@ fc_pigs |>
        y="Pigs")
 ```
 
-## b
-
-Compute a 95% prediction interval for the first forecast using \^y±1.96s where s is the standard deviation of the residuals. Compare your interval with the interval produced by R.
+### b Compute a 95% prediction interval for the first forecast using \^y±1.96s where s is the standard deviation of the residuals. Compare your interval with the interval produced by R.
 
 ```{r}
 params <- fc_pigs |> hilo() |> select(.mean, `95%`)
@@ -155,9 +153,7 @@ french_economy <- global_economy |> filter(Country == "France")
 french_economy
 ```
 
-## a
-
-Plot the Exports series and discuss the main features of the data.
+### a Plot the Exports series and discuss the main features of the data.
 
 ```{r}
 french_economy |> 
@@ -181,9 +177,7 @@ The French economy has seen a few periods of contraction and expansion. Most obv
 
 The graph of French exports shows that exports per capita has been broadly keeping pace with the rise in population. In contrast, French exports in real terms fell during the middle part of the twentieth century and has been stagnating since the late 1980s.
 
-## b
-
-Use an ETS(A,N,N) model to forecast the series, and plot the forecasts.
+### b Use an ETS(A,N,N) model to forecast the series, and plot the forecasts.
 
 ```{r}
 french_fit <- french_economy |> 
@@ -196,17 +190,13 @@ french_fc |>
   labs(title="French Economy Forecast (Simple Exponential Smoothing)", y="Exports")
 ```
 
-## c
-
-Compute the RMSE values for the training data.
+### c Compute the RMSE values for the training data.
 
 ```{r}
 accuracy(french_fit)$RMSE
 ```
 
-## d
-
-Compare the results to those from an ETS(A,A,N) model. (Remember that the trended model is using one more parameter than the simpler model.) Discuss the merits of the two forecasting methods for this data set.
+### d Compare the results to those from an ETS(A,A,N) model. (Remember that the trended model is using one more parameter than the simpler model.) Discuss the merits of the two forecasting methods for this data set.
 
 ```{r}
 french_fit2 <- french_economy |> 
@@ -225,9 +215,7 @@ accuracy(french_fit2)$RMSE
 
 Comparing the two models, Simple Exponential Smoothing is suitable for data that has no trend. Clearly, for the case of the French economy this is not the case, hence, Holt's linear trend method will produce superior forecast results.
 
-## e
-
-Compare the forecasts from both methods. Which do you think is best?
+### e Compare the forecasts from both methods. Which do you think is best?
 
 Judging by the graphs the trend method clearly gives more intuitive forecast results.
 
@@ -245,9 +233,7 @@ french_economy |>
 
 Unexpectedly, if we compare the one-step accuracy of the two methods (and throw in the damping method just out of curiosity) we find that SES performs the best! What?!
 
-## f
-
-Calculate a 95% prediction interval for the first forecast for each model, using the RMSE values and assuming normal errors. Compare your intervals with those produced using R.
+### f Calculate a 95% prediction interval for the first forecast for each model, using the RMSE values and assuming normal errors. Compare your intervals with those produced using R.
 
 ```{r}
 fit <- french_economy |> 
@@ -286,3 +272,371 @@ french_fit2 |>
   as_tibble() |> 
   select(.model, low, high)
 ```
+
+## Exercise 6
+
+Forecast the Chinese GDP from the global_economy data set using an ETS model. Experiment with the various options in the ETS() function to see how much the forecasts change with damped trend, or with a Box-Cox transformation. Try to develop an intuition of what each is doing to the forecasts.
+
+```{r}
+chinese_economy <- global_economy |> 
+  filter(Country == "China")
+
+chinese_economy |> 
+  autoplot(GDP) +
+  labs(title = "Chinese Economy")
+```
+
+This is what American hedge fund managers call hockey stick growth. There is a non-linear trend and no seasonality.
+
+```{r}
+lambda <- chinese_economy |>
+  features(GDP, features = guerrero) |>
+  pull(lambda_guerrero)
+
+chinese_economy |> 
+  autoplot(box_cox(GDP, lambda)) +
+  labs(title = "China Economy", y = "Box-Cox Transformed GDP")
+```
+
+The transformed GDP figures are now much more linear which should improve forecast modelling.
+
+```{r}
+chinese_fit <- chinese_economy |> 
+  model(
+    SES = ETS(box_cox(GDP, lambda) ~ error("A") + trend("N") + season("N")),
+    Holt = ETS(box_cox(GDP, lambda) ~ error("A") + trend("A") + season("N")),
+    Damped = ETS(box_cox(GDP, lambda) ~ error("A") + trend("Ad") + season("N")),
+    MAN = ETS(box_cox(GDP, lambda) ~ error("M") + trend("A") + season("N")),
+)
+
+glance(chinese_fit)
+```
+
+According to the AIC and MSE values the Holt method is the best.
+
+```{r}
+chinese_fc <- chinese_fit |> forecast(h = 15) 
+
+chinese_fc |>
+  autoplot(chinese_economy) +
+  labs(title="Chinese Economy Forecast", y="GDP")
+```
+
+According to the Holt's method forecast Chinese GDP is predicted to continue accelerating.
+
+## Exercise 7
+
+Find an ETS model for the Gas data from aus_production and forecast the next few years. Why is multiplicative seasonality necessary here? Experiment with making the trend damped. Does it improve the forecasts?
+
+```{r}
+aus_gas <- aus_production 
+
+aus_gas |> autoplot(Gas)
+```
+
+The variance in the data increases with time, thus it is necessary to tranform the data to level this out.
+
+```{r}
+lambda <- aus_gas |> 
+  features(Gas, features = guerrero) |> pull()
+aus_gas |> autoplot(box_cox(Gas, lambda))
+```
+
+```{r}
+aus_gas_fit <- aus_gas |> 
+  model(
+    SES = ETS(box_cox(Gas, lambda) ~ error("A") + trend("N") + season("N")),
+    Holt = ETS(box_cox(Gas, lambda) ~ error("A") + trend("A") + season("N")),
+    Damped = ETS(box_cox(Gas, lambda) ~ error("A") + trend("Ad") + season("N")),
+    MAN = ETS(box_cox(Gas, lambda) ~ error("M") + trend("A") + season("N")),
+    MAA = ETS(box_cox(Gas, lambda) ~ error("M") + trend("A") + season("A")),
+    AAA = ETS(box_cox(Gas, lambda) ~ error("A") + trend("A") + season("A")),
+    AMA = ETS(box_cox(Gas, lambda) ~ error("A") + trend("M") + season("A")),
+    AAdA = ETS(box_cox(Gas, lambda) ~ error("A") + trend("Ad") + season("A")),
+    MAM = ETS(box_cox(Gas, lambda) ~ error("M") + trend("A") + season("M")),
+    AAM = ETS(box_cox(Gas, lambda) ~ error("A") + trend("A") + season("M")),
+    AAdM = ETS(box_cox(Gas, lambda) ~ error("A") + trend("Ad") + season("M")),
+)
+
+glance(aus_gas_fit)
+```
+
+According to AIC and MSE the AAA model yields the best performance. Clearly, models that include seasonality will perform better, plus there is strong trend in the data. Here the additive version yields better results.
+
+```{r}
+aus_gas |> 
+  model(
+    SES = ETS(box_cox(Gas, lambda))
+  )
+```
+
+Running the model without specifying a method also confirms that AAA is the best method.
+
+```{r}
+aus_gas_fc <- 
+  aus_gas |> 
+  model(
+    AAA = ETS(box_cox(Gas, lambda) ~ error("A") + trend("A") + season("A")),
+) |> forecast(h = 10)
+```
+
+```{r}
+aus_gas_fc |> 
+  autoplot(aus_gas |> 
+  filter(year(Quarter) >= 2000)) +
+  labs(title = "Australian Gas Forecast")
+```
+
+## Exercise 8
+
+Recall your retail time series data (from Exercise 7 in Section 2.10).
+
+```{r}
+set.seed(42)
+myseries <- aus_retail |>
+  filter(`Series ID` == sample(aus_retail$`Series ID`, 1))
+
+myseries |> autoplot(Turnover) +
+  labs(title = with(myseries, paste(State, Industry)))
+```
+
+### a Why is multiplicative seasonality necessary for this series?
+
+The variance of the time series increases with time, thus we need to transform the data first.
+
+```{r}
+lambda <- myseries |>
+  features(Turnover, features = guerrero) |> pull(lambda_guerrero)
+lambda
+```
+
+```{r}
+dcmp <- myseries |>
+  model(
+    STL(box_cox(Turnover, lambda) ~ trend(window = 4) + season(window = 12),
+    robust = TRUE)) |>
+  components() 
+dcmp |> autoplot()
+```
+
+> The additive method is preferred when the seasonal variations are roughly constant through the series, while the multiplicative method is preferred when the seasonal variations are changing proportional to the level of the series.
+
+Looking at the decomposition of the series the seasonality isn't entirely constant as it dips for several years around the turn of the century but recovers later on. How much this matters can only be known be running the models.
+
+### b Apply Holt-Winters' multiplicative method to the data. Experiment with making the trend damped.
+
+```{r}
+myseries_fit <- myseries |> 
+  model(
+    ANA = ETS(box_cox(Turnover, lambda) ~ error("A") + trend("N") + season("A")),
+    AAA = ETS(box_cox(Turnover, lambda) ~ error("A") + trend("A") + season("A")),
+    AAdA = ETS(box_cox(Turnover, lambda) ~ error("A") + trend("Ad") + season("A")),
+    MAM = ETS(box_cox(Turnover, lambda) ~ error("M") + trend("A") + season("M")),
+    MAdM = ETS(box_cox(Turnover, lambda) ~ error("M") + trend("Ad") + season("M")),
+)
+
+glance(myseries_fit)
+```
+Initially, going by the AIC and MSE stats the AAA model is the best. However, letting the ETS function select the best model for itself shows that ANA has better performance, shown below.
+
+```{r}
+myseries |> model(ETS(box_cox(Turnover, lambda)),
+)
+```
+
+```{r}
+myseries_fit2 <- myseries |> 
+  model(
+    ANA = ETS(box_cox(Turnover, lambda) ~ error("A") + trend("N") + season("A")),
+)
+
+accuracy(myseries_fit2)
+```
+
+
+```{r}
+myseries_fc <- myseries_fit2 |> forecast(h = 15)
+
+myseries_fc |> accuracy(myseries)
+```
+
+
+```{r}
+myseries_fc |>
+  autoplot(myseries |> filter(year(Month) > 2015)) +
+  labs(title = with(myseries, paste(State, Industry)))
+```
+
+### c Compare the RMSE of the one-step forecasts from the two methods. Which do you prefer?
+
+```{r}
+myseries_fit3 <- myseries |> 
+  stretch_tsibble(.init = 4)  |>
+  model(
+    ANA = ETS(box_cox(Turnover, lambda) ~ error("A") + trend("N") + season("A")),
+    AAA = ETS(box_cox(Turnover, lambda) ~ error("A") + trend("A") + season("A")),
+    MAM = ETS(box_cox(Turnover, lambda) ~ error("M") + trend("A") + season("M")),
+)
+```
+
+
+```{r}
+myseries_fit3 |> 
+    forecast(h = 1) |>
+    accuracy(myseries)
+```
+Well, this isn't very helpful. The RMSE values suggest that the ANA method performs best while the MAE figure favours the AAA method.
+
+
+### d Check that the residuals from the best method look like white noise.
+
+```{r}
+augment(myseries_fit2) |> 
+  ggplot(aes(y=.resid, x=Month)) +
+  geom_point()
+```
+
+The residuals displas that the variance is increasing over time, plus there are a number of outliers around 2010.
+
+```{r}
+augment(myseries_fit2) |> 
+  ggplot(aes(y=.innov, x=Month)) +
+  geom_point()
+```
+Examing the transformed residuals, things look better.
+
+### e Now find the test set RMSE, while training the model to the end of 2010. Can you beat the seasonal naïve approach from Exercise 7 in Section 5.11?
+
+```{r}
+set.seed(42)
+series_id <- sample(aus_retail$`Series ID`, 1)
+myseries_train <- aus_retail |>
+  filter(year(Month) <= 2010) |> 
+  filter(`Series ID` == series_id)
+
+myseries_test <- aus_retail |>
+  filter(year(Month) > 2010) |> 
+  filter(`Series ID` == series_id)
+
+autoplot(myseries, Turnover) +
+  autolayer(myseries_train, Turnover, colour = "orange")
+```
+
+
+```{r}
+fit <- myseries_train |> model(SNAIVE(Turnover))
+
+fc <- fit |>  forecast(new_data = myseries_test)
+fc |> autoplot(myseries_test, colour = "red", level = NULL)
+```
+The naïve seasonal model doesn't caputre the trend in the data. There is also a log visible in the peaks.
+
+```{r}
+accuracy(fit) |> pull(RMSE)
+```
+
+
+```{r}
+accuracy(fc, myseries) |> select(RMSE, MAE)
+```
+
+I decided to go with the method chosen by the ETS function: it selected the AAdA method.
+
+```{r}
+myseries_fit4 <- myseries_train |> model(ETS(box_cox(Turnover, lambda)))
+myseries_fit4
+```
+
+
+```{r}
+accuracy(myseries_fit4)
+```
+
+```{r}
+myseries_fc4 <- myseries_fit4 |> forecast(h = 98) 
+myseries_fc4 |> accuracy(myseries) |> select(RMSE, MAE)
+```
+The accuracy of RMSE has fallen from 9.1 to 5.1. Similarly, there was a drop in MAE, it has fallen from 7.3 to 3.8.
+
+```{r}
+myseries_fc4 |> 
+  autoplot(myseries_test, colour = "red", level = NULL)
+```
+
+Without looking at the statistical results it's evident that the ETS AAdA method is an improvement over the naïve seasonal method: it has captured the trend in the data, plus the peaks are no longer lagging. It doesn't however, capture the magnitude of the peaks. They appear to be exactly the same size.
+
+## Exercise 9
+
+For the same retail data, try an STL decomposition applied to the Box-Cox transformed series, followed by ETS on the seasonally adjusted data. How does that compare with your best previous forecasts on the test set?
+
+```{r}
+set.seed(42)
+series_id <- sample(aus_retail$`Series ID`, 1)
+myseries_train <- aus_retail |>
+  filter(year(Month) <= 2010) |> 
+  filter(`Series ID` == series_id)
+
+myseries_test <- aus_retail |>
+  filter(year(Month) > 2010) |> 
+  filter(`Series ID` == series_id)
+
+lambda <- myseries_train |>
+  features(Turnover, features = guerrero) |> pull(lambda_guerrero)
+lambda
+```
+
+Perform decomposition on the full series.
+
+```{r}
+dcmp_full <- myseries |>
+  model(
+    STL(box_cox(Turnover, lambda) ~ trend(window = 4) + season(window = 12), robust = TRUE)) |> 
+  components()
+
+dcmp_train <- dcmp_full |> filter(year(Month) < 2011)
+dcmp_test <- dcmp_full |> filter(year(Month) >= 2011) 
+
+dcmp_train |> autoplot(`box_cox(Turnover, lambda)`)
+```
+
+It seems the seasonal data is embedded in the component data, to access it you have to remove the `.model`.
+
+```{r}
+dcmp_train |>
+  select(-.model) |> 
+  autoplot(`box_cox(Turnover, lambda)`, colour = "grey") +
+  geom_line(aes(y=season_adjust), colour = "navyblue") +
+  labs(title = "Seasonally adjusted Newspaper and book retail data")
+```
+
+Let's look at the data structure.
+
+```{r}
+dcmp_train |> select(-.model)
+```
+Fit the training data, letting ETS select the best method.
+
+```{r}
+dcmp_fit <- dcmp_train |> 
+  select(-.model) |>
+  model(ETS(season_adjust))
+dcmp_fit
+```
+Apparently, ETS selects ANN as the best choice of method. Not my first guess.
+
+```{r}
+dcmp_fit |> accuracy() |> select(RMSE, MAE)
+```
+
+
+```{r}
+dcmp_fc <- dcmp_fit |> forecast(new_data = myseries_test)
+dcmp_fc |> autoplot(dcmp_train |> select(-.model))
+```
+
+```{r}
+dcmp_fc |> accuracy(dcmp_test |> select(-.model) ) |> select(RMSE, MAE)
+```
+The previous best best forecasts had a RMSE of 5.1 and a MAE of 3.8 which are inferior to the values found here. 
+
+While this seems good we now have a point estimate for Turnover that doesn't take into account seasonality information, and the levels of uncertainly are fairly high. How useful is this actually?
