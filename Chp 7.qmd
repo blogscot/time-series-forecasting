@@ -1,7 +1,9 @@
 ---
 title: "Time Series"
 author: "Iain Diamond"
-format: html
+format: 
+  html:
+    code-fold: true
 ---
 
 For when I get stuck [Dan McSwain Solutions](https://rstudio-pubs-static.s3.amazonaws.com/834769_a7e343c5024745eeb06f9c6031d0c6b6.html)

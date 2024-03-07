@@ -1,0 +1,836 @@
+---
+title: "Chp 9.qmd"
+author: "Iain Diamond"
+format: 
+  html:
+    toc: true
+    code-fold: true
+---
+
+# Chapter 9
+
+```{r}
+library(fpp3)
+```
+
+## Exercise 1 
+
+Figure 9.32 shows the ACFs for 36 random numbers, 360 random numbers and 1,000 random numbers.
+
+### a 
+
+Explain the differences among these figures. Do they all indicate that the data are white noise?
+
+All three graphs show the autocorrelated lags falling inside the blue bands meaning that they are not statistically different from white noise, which is to be expected for data that is drawn from random numbers. The only difference is that these bands of 'insignificance' are narrower as the sample size grows larger.
+
+```{r}
+for (x in c(36, 360, 1000)) {
+  x <- rnorm(x)
+  acf(x)
+}
+```
+
+### b.1
+
+Why are the critical values at different distances from the mean of zero?
+
+The position of the critical values (i.e. the blue lines) are given as ±2/√T where T is the length of the time series. Therefore, as the size of T increases the range of these critical values becomes narrower.
+
+Quoting from the book, section 2.9:
+
+> For a white noise series, we expect 95% of the spikes in the ACF to lie within ±2/√T where T is the length of the time series.
+
+### b.2 
+
+Why are the autocorrelations different in each figure when they each refer to white noise?
+
+White noise by its very nature is random. Hence, no two samples will be the same.
+
+## Exercise 2 
+
+A classic example of a non-stationary series are stock prices. Plot the daily closing prices for Amazon stock (contained in gafa_stock), along with the ACF and PACF. Explain how each plot shows that the series is non-stationary and should be differenced.
+
+```{r}
+goog_close <- gafa_stock |> 
+  filter(Symbol == "GOOG") |> 
+  select(Symbol, Close) |> 
+  mutate(trading_day = row_number()) |>
+  update_tsibble(key = Symbol, index=trading_day, regular = TRUE)
+goog_close |> autoplot(Close)
+```
+
+Stationary data has no trend, seasonality and has constant variance. Clearly, the Google closing data has a trend, and therefore needs to be differenced before carrying out ARIMA analysis.
+
+```{r}
+gg_tsdisplay(goog_close, plot_type = "partial", y = Close)
+```
+
+The ACF plot shows a very slowly decaying series of autocorrelations which doesn't fall to zero indicating a strong trend in the data. What we want to see is a plot quickly decaying to zero or sinusoidal series of results.
+
+```{r}
+goog_close |>
+  features(difference(Close), unitroot_kpss)
+```
+
+After taking the difference, the p-value of the `kpss` test is reported as 0.1. We can conclude that the differenced data appear stationary.
+
+```{r}
+#| warning: false
+gg_tsdisplay(goog_close, difference(Close), plot_type = "partial")
+```
+
+In the the book, section 9.1 the example Google closing data only considered the year 2015. The ACF plot for that year could be considered as white noise because only one lag was statistically significant. Alas, now that the full data set is being considered the same cannot be said as we now have three significant lags. What are the implications of the ACF not quite matching white noise?
+
+```{r}
+goog_close |>
+  mutate(diff_close = difference(Close)) |>
+  features(diff_close, ljung_box, lag = 10)
+```
+
+Performing the Ljung-box test produces a p-value far smaller than 0.05 thus we have to reject the null hypothesis. We cannot consider the daily change in stock price are random data.
+
+From section 9.8:
+
+> The prediction intervals for ARIMA models are based on assumptions that the residuals are uncorrelated and normally distributed. If either of these assumptions does not hold, then the prediction intervals may be incorrect. For this reason, always plot the ACF and histogram of the residuals to check the assumptions before producing prediction intervals.
+
+## Exercise 3 
+
+For the following series, find an appropriate Box-Cox transformation and order of differencing in order to obtain stationary data.
+
+### a 
+
+Turkish GDP from global_economy.
+
+```{r}
+turkey_gdp <- global_economy |> 
+  filter(Country == "Turkey") |> 
+  select(GDP)
+
+turkey_gdp |> autoplot(GDP)
+```
+
+The plot contains a clear trend.
+
+```{r}
+turkey_gdp |> features(GDP, unitroot_ndiffs)
+```
+
+According to the unitroot test, we need one level of differences.
+
+```{r}
+lambda <- turkey_gdp |>
+  features(GDP, features = guerrero) |>
+  pull(lambda_guerrero)
+lambda
+```
+
+```{r}
+turkey_gdp_transformed <- turkey_gdp |> 
+  mutate(diff_box_cox_close = difference(box_cox(GDP, lambda)))
+
+turkey_gdp_transformed |>
+  features(diff_box_cox_close, unitroot_kpss)
+```
+
+The p-value is reported as 0.1. We can conclude that the differenced data appear stationary.
+
+```{r}
+#| warning: false
+gg_tsdisplay(turkey_gdp_transformed, diff_box_cox_close, plot_type = "partial")
+```
+
+### b 
+
+Accommodation takings in the state of Tasmania from aus_accommodation.
+
+```{r}
+tasmania_takings <- aus_accommodation |> 
+  filter(State == "Tasmania") |> 
+  select(Takings)
+
+tasmania_takings |> autoplot(Takings)
+```
+
+In the plot we can see a trend, seasonality, and increasing variance.
+
+```{r}
+lambda <- tasmania_takings |>
+  features(Takings, features = guerrero) |>
+  pull(lambda_guerrero)
+
+tasmania_takings |> 
+  features(box_cox(Takings, lambda), unitroot_nsdiffs)
+```
+
+We need one order of differencing for the seasonality.
+
+```{r}
+tasmania_takings |> 
+  features(difference(box_cox(Takings, lambda), 4), unitroot_ndiffs)
+```
+
+The transformed data doesn't required any further differencing.
+
+```{r}
+tasmania_takings |> 
+  features(difference(box_cox(Takings, lambda), 4), unitroot_kpss)
+```
+
+Which is confirmed by the `KPSS` test: the p-value is reported as 0.1. We can conclude that the differenced data appear stationary.
+
+```{r}
+#| warning: false
+gg_tsdisplay(tasmania_takings, difference(box_cox(Takings, lambda), 4), plot_type = "partial")
+```
+
+### c 
+
+Monthly sales from souvenirs.
+
+```{r}
+souvenirs |> autoplot(Sales)
+```
+
+```{r}
+lambda <- souvenirs |>
+  features(Sales, features = guerrero) |>
+  pull(lambda_guerrero)
+lambda
+```
+
+Lambda is very close to zero, so let's just use `log`.
+
+```{r}
+souvenirs %>%
+  features(log(Sales), unitroot_nsdiffs)
+```
+
+We need one order of differencing for the seasonality.
+
+```{r}
+souvenirs %>%
+  features(difference(log(Sales), 12), unitroot_ndiffs)
+```
+
+The transformed data doesn't required any further differencing.
+
+```{r}
+souvenirs |> 
+  features(difference(log(Sales), 12), unitroot_kpss)
+```
+
+Which is confirmed by the `KPSS` test: the p-value is reported as 0.1. We can conclude that the differenced data appear stationary.
+
+```{r}
+#| warning: false
+ gg_tsdisplay(souvenirs, difference(log(Sales), 12), plot_type='partial')
+```
+
+## Exercise 4 
+
+For the souvenirs data, write down the differences you chose above using backshift operator notation.
+
+The differencing of souvenirs data (where $m = 12$) using back-shift notation can be represented by, $(1-B^{12}) y_t$.
+
+## Exercise 5 
+
+For your retail data (from Exercise 7 in Section 2.10), find the appropriate order of differencing (after transformation if necessary) to obtain stationary data.
+
+```{r}
+set.seed(42)
+myseries <- aus_retail |>
+  filter(`Series ID` == sample(aus_retail$`Series ID`, 1))
+
+myseries |> autoplot(Turnover) +
+  labs(title = with(myseries, paste(State, Industry)))
+```
+
+We have it all, increasing variance, trend and seasonality.
+
+```{r}
+lambda <- myseries |>
+  features(Turnover, features = guerrero) |>
+  pull(lambda_guerrero)
+lambda
+```
+
+```{r}
+myseries %>%
+  features(box_cox(Turnover, lambda), unitroot_nsdiffs)
+```
+
+We need one order of differencing for the seasonality.
+
+```{r}
+myseries %>%
+  features(difference(box_cox(Turnover, lambda), 12), unitroot_ndiffs)
+```
+
+The `ndiffs` unitroot test claims no further differencing is necessary.
+
+```{r}
+myseries |> 
+  features(difference(box_cox(Turnover, lambda), 12), unitroot_kpss)
+```
+
+The `KPSS` test returns a p-value of 0.1 so we can accept the null hypothesis: the differenced data appear stationary.
+
+```{r}
+#| warning: false
+ gg_tsdisplay(myseries, difference(box_cox(Turnover, lambda), 12), plot_type='partial')
+```
+
+```{r}
+gg_season(myseries, box_cox(Turnover, lambda))
+```
+
+The `gg_season` plot shows there's been a upwards trend as can be seen in the colour shift as the turnover increases. There's a significant seasonal bump around the end of the year. As the retail sector is Newspaper and book retailing, the increase is perhaps due to an uptick in book sales around Christmas time.
+
+```{r}
+gg_subseries(myseries, box_cox(Turnover, lambda))
+```
+
+Again we can see the sector jump up at the end of the year.
+
+```{r}
+myseries |> 
+  mutate(Turnover = box_cox(Turnover, lambda)) |> 
+  gg_lag(Turnover)
+```
+
+## Exercise 6 
+
+Simulate and plot some data from simple ARIMA models.
+
+### a 
+
+Use the following R code to generate data from an AR(1) model with $\phi_1=0.6$ and $\sigma^2=1$. The process starts with $y_1=0$.
+
+```{r}
+# Generates a tsibble of length size data points according to the formulas 
+# z_t = y_t-1
+# x_t = phi * y_t-1
+# y_t = phi * y_t-1 + e, where e ~ N(0, 1)
+generate_ar1 <- function(size=100, phi=0.6) {
+  set.seed(42)
+  x <- numeric(size)
+  y <- numeric(size)
+  e <- rnorm(size)
+  for(i in 2:size) {
+    x[i] <- phi * y[i-1] 
+    y[i] <- x[i] + e[i]
+  }
+  tsibble(idx = seq_len(size), y = y, x = x, e = e, index = idx)
+}
+```
+
+### b 
+
+Produce a time plot for the series. How does the plot change as you change $\phi_1$?
+
+```{r}
+plot_data <- function(phi) {
+  sim <- generate_ar1(phi = phi)
+  autoplot(sim, y) + 
+    autolayer(sim, e, colour = "grey") +
+    autolayer(sim, x, colour = "#6666ff") +
+    labs(title = paste("Phi = ", phi))
+}
+```
+
+| Colour | Value                   |
+|--------|-------------------------|
+| grey   | error                   |
+| blue   | phi \* previous         |
+| black  | phi \* previous + error |
+
+```{r}
+plot_data(0.1)
+plot_data(0.3)
+plot_data(0.5)
+plot_data(0.8)
+plot_data(0.9)
+plot_data(0.99)
+```
+
+For very small values of phi the data is dominated by the noise as the contribution from the previous value is minimal. Conversely, for values of phi close to 1 the significance of the error component significantly reduces.
+
+### c 
+
+Write your own code to generate data from an MA(1) model with $\theta_1=0.6$ and $\sigma^2=1$.
+
+```{r}
+# Generates a tsibble of length size data points according to the formula
+# y_t = e_t + theta * e_t-1, where e ~ N(0, 1)
+generate_ma1 <- function(size=100, theta=0.6) {
+  y <- numeric(size)
+  e <- rnorm(size)
+  for(i in 3:size) {
+    y[i] <- e[i] + theta * e[i-1]
+  }
+  tsibble(idx = seq_len(size), y = y, index = idx)
+}
+```
+
+### d 
+
+Produce a time plot for the series. How does the plot change as you change $θ_1$?
+
+```{r}
+generate_ma1(theta = 0.6) |> gg_tsdisplay(y, plot_type = "partial")
+```
+
+### e 
+
+Generate data from an ARMA(1,1) model with $\phi_1=0.6$, $\theta_1=0.6$ and $\sigma^2=1$.
+
+```{r}
+generateARMA1_1 <- function(phi = 0.6, theta = 0.6, sd = 1) {
+    y <- numeric(100)
+    e <- rnorm(100, sd)
+    for(i in 2:100) {
+      y[i] <- phi * y[i-1] + theta * e[i-1] + e[i]
+    }
+    tsibble(idx = 1:100, y = y, index = idx)
+}
+generateARMA1_1() |> autoplot(y)
+```
+
+### f 
+
+Generate data from an AR(2) model with $\phi_1=−0.8$, $\phi_2=0.3$ and $\sigma^2=1$. (Note that these parameters will give a non-stationary series.)
+
+```{r}
+generateARMA2 <- function(phi = c(-0.8, 0.3), sd = 1) {
+    y <- numeric(100)
+    e <- rnorm(100, sd)
+    for(i in 3:100) {
+      y[i] <- phi[1] * y[i-1] + phi[2] * y[i-2] + e[i]
+    }
+    tsibble(idx = 1:100, y = y, index = idx)
+}
+generateARMA2() |> autoplot(y)
+```
+
+### g 
+
+Graph the latter two series and compare them.
+
+The ARMA(1,1) plot has a non-zero mean, no trend, and the variance looks roughly constant. Generating several datasets will produce different looking plots. Meanwhile, the ARMA(2) plot has zero mean, but the variance is increasing exponentially. Curiously, this resonance shape to the plot is pretty consistent when generating several independent test sets.
+
+## Exercise 7 
+
+Consider aus_airpassengers, the total number of passengers (in millions) from Australian air carriers for the period 1970-2011.
+
+```{r}
+aus_airpassengers |> 
+  autoplot(Passengers)
+```
+
+### a 
+
+Use ARIMA() to find an appropriate ARIMA model. What model was selected. Check that the residuals look like white noise. Plot forecasts for the next 10 periods.
+
+```{r}
+aus_airpassengers |> 
+  features(difference(Passengers) |> difference(), unitroot_ndiffs)
+```
+
+To get an ndiffs of zero we need to take difference of order two.
+
+```{r}
+#| warning: false
+airpassengers <- aus_airpassengers |> 
+  mutate(diff2 = Passengers |> 
+           difference() |> 
+           difference())
+
+gg_tsdisplay(airpassengers, diff2, plot_type = "partial")
+```
+
+The ACF plot has a single significant lag which is suggestive of a MA(1) model, while in the PACF plot the last significant lag looks like 4, which would involve much more processing to evaluate.
+
+```{r}
+fit <- aus_airpassengers |> 
+  model(ARIMA(Passengers))
+
+fit
+```
+
+```{r}
+report(fit)
+```
+
+The ARIMA function suggests that an MA(1) model is best (but can we trust it?).
+
+```{r}
+fit2 <- aus_airpassengers |> 
+  model(
+    arima021 = ARIMA(Passengers ~ pdq(0,2,1)),
+    arima420 = ARIMA(Passengers ~ pdq(4,2,0))
+  )
+glance(fit2)
+```
+
+Well, yes, the ARIMA(0,2,1) model is superior.
+
+```{r}
+gg_tsresiduals(fit)
+```
+
+```{r}
+augment(fit) |>
+  features(.innov, ljung_box, lag = 10, dof = 1)
+```
+
+The ljung test p-value is large so the residuals can be considered white noise.
+
+```{r}
+fc <- fit |> forecast(h=10) 
+autoplot(fc, aus_airpassengers)
+```
+
+### b 
+
+Write the model in terms of the backshift operator.
+
+ARIMA(0,2,1): $(1 - B)^2y_t = c + (1 + \theta_1B)\epsilon_t$
+
+### c 
+
+Plot forecasts from an ARIMA(0,1,0) model with drift and compare these to part a.
+
+```{r}
+fit3 <- aus_airpassengers |> 
+  model(ARIMA(Passengers ~ 1 + pdq(0,1,0)))
+report(fit3)
+```
+
+```{r}
+fc3 <- fit3 |> forecast(h=10) 
+fc3 |> autoplot(aus_airpassengers)
+```
+
+### d 
+
+Plot forecasts from an ARIMA(2,1,2) model with drift and compare these to parts a and c. Remove the constant and see what happens.
+
+```{r}
+fit4 <- aus_airpassengers |> 
+  model(ARIMA(Passengers ~ 1 + pdq(2,1,2)))
+report(fit4)
+```
+
+```{r}
+fc4 <- fit4 |> forecast(h=10) 
+fc4 |> autoplot(aus_airpassengers)
+```
+
+```{r}
+aus_airpassengers |> 
+  model(ARIMA(Passengers ~ 0 + pdq(2,1,2))) |> 
+  report()
+```
+
+### e 
+
+Plot forecasts from an ARIMA(0,2,1) model with a constant. What happens?
+
+```{r}
+fit5 <- aus_airpassengers |> 
+  model(ARIMA(Passengers ~ 1 + pdq(0,2,1)))
+```
+
+In the example above, d = 2. According to section 9.7:
+
+> By default, the ARIMA() function will automatically determine if a constant should be included. For d=0 or d=1, a constant will be included if it improves the AICc value. If d\>1 the constant is always omitted as a quadratic or higher order trend is particularly dangerous when forecasting.
+
+```{r}
+fc5 <- fit5 |> forecast(h=10) 
+fc5 |> autoplot(aus_airpassengers)
+```
+
+## Exercise 8 
+
+For the United States GDP series (from global_economy):
+
+```{r}
+us_economy <- global_economy |> 
+  filter(Country == "United States")
+
+us_economy |> autoplot(GDP)
+```
+
+### a 
+
+if necessary, find a suitable Box-Cox transformation for the data;
+
+```{r}
+lambda <- us_economy |> 
+  features(GDP, features = guerrero) |> pull()
+lambda
+```
+
+```{r}
+us_economy |> autoplot(box_cox(GDP, lambda))
+```
+
+```{r}
+us_economy |> 
+  features(GDP |> box_cox(lambda), unitroot_ndiffs)
+```
+
+The transformed data requires differencing of order 1.
+
+```{r}
+#| warning: false
+us_economy |> 
+  transmute(GDP = box_cox(GDP, lambda) |> difference()) |> 
+  gg_tsdisplay(GDP)
+```
+
+The PACF has a single significant lag suggesting that AR(1) is a good candidate, similarly the ACF also has a single significant lag, so MA(1) is also worth investigating.
+
+### b 
+
+fit a suitable ARIMA model to the transformed data using ARIMA();
+
+```{r}
+fit <- us_economy |> model(ARIMA(box_cox(GDP, lambda)))
+report(fit)
+```
+
+### c 
+
+try some other plausible models by experimenting with the orders chosen;
+
+Using the adjusted data, the ARIMA function selects AR(1) as the best model. If we also try MA(1) we find:
+
+```{r}
+fit2 <- model(us_economy, ARIMA(box_cox(GDP, lambda) ~ pdq(0,1,1)))
+report(fit2)
+```
+
+The AICc and log likelihood figures are not as good as the AR(1) model.
+
+```{r}
+fit3 <- model(us_economy |> 
+  transmute(GDP = box_cox(GDP, lambda)), ARIMA(GDP, stepwise = FALSE, greedy = FALSE, trace = TRUE))
+report(fit3)
+```
+
+### d 
+
+choose what you think is the best model and check the residual diagnostics;
+
+After pulling out all the stops, the best model was produced using fit:
+
+Model: ARIMA(1,1,0) w/ drift
+
+```{r}
+gg_tsresiduals(fit)
+```
+
+```{r}
+augment(fit) |>
+  features(.innov, ljung_box, lag = 10, dof = 1)
+```
+
+The ljung test p-value is large so the residuals are essentially white noise.
+
+### e 
+
+produce forecasts of your fitted model. Do the forecasts look reasonable?
+
+```{r}
+fc <- fit |> forecast(h=5) 
+fc |> autoplot(us_economy)
+```
+
+The forecast follows the exponential pattern in the sample data. The confidence intervals are supprisingly narrow.
+
+### f 
+
+compare the results with what you would obtain using ETS() (with no transformation).
+
+```{r}
+us_economy_fit <- us_economy |> model(ETS(GDP))
+report(us_economy_fit)
+```
+
+The AICc here is spectacularly bad, which can be significantly improved by using box_cox, but they asked for 'no transformation', so there it is.
+
+```{r}
+#| warning: false
+components(us_economy_fit) |> autoplot() +
+  labs(title = "ETS(M,A,N) components")
+```
+
+```{r}
+us_economy_fc <- us_economy_fit |> forecast(h = 5)
+us_economy_fc |> autoplot(us_economy)
+```
+
+```{r}
+fc |> hilo() |> select(`95%`) |> head(1)
+us_economy_fc |> hilo() |> select(`95%`) |> head(1)
+
+```
+| Method |    Lower     |    Upper     |
+|:------:|:------------:|:------------:|
+| ARIMA  | 1.965478e+13 | 2.069269e+13 |
+|  ETS   | 1.904132e+13 | 2.109013e+13 |
+
+: 95% Confidence Intervals {#tbl-intervals}
+
+As we can see from the forecast plots and in @tbl-intervals above the confidence intervals for ARIMA, in this case, are narrower than those for ETS.
+
+```{r}
+accuracy(fit) |> select(RMSE, MAE, MASE)
+accuracy(us_economy_fit) |> select(RMSE, MAE, MASE)
+```
+The ARIMA model has better accuracy statistics.
+
+## Exercise 11
+
+Choose one of the following seasonal time series: the Australian production of electricity, cement, or gas (from aus_production).
+
+```{r}
+aus_electric <- aus_production |> select("Electricity")
+aus_electric |> autoplot(Electricity)
+```
+
+### a
+
+Do the data need transforming? If so, find a suitable transformation.
+
+The variance isn't constant, so a tranformation will help mitigate this issue.
+
+```{r}
+lambda <- aus_electric |> 
+  features(Electricity, features = guerrero) |> pull()
+lambda
+```
+```{r}
+aus_electric |> autoplot(box_cox(Electricity, lambda))
+```
+### b
+
+Are the data stationary? If not, find an appropriate differencing which yields stationary data.
+
+The data show a clear trend and seasonality, so no the data are not stationary.
+
+
+```{r}
+aus_electric |> 
+  features(Electricity |> box_cox(lambda), unitroot_nsdiffs)
+```
+The data require seasonal differencing.
+
+```{r}
+aus_electric |> 
+  features(box_cox(Electricity, lambda) |> difference(4) |> difference(), unitroot_ndiffs)
+```
+And a further order of differencing to obtain an ndiffs value of zero.
+
+
+```{r}
+aus_electric2 <- aus_electric |> 
+  mutate(Electricity = box_cox(Electricity, lambda) |> difference(4) |> difference())
+aus_electric2 |> 
+  features(Electricity, unitroot_kpss)
+```
+A large KPSS p-value (that is, greater than 0.05) confirms that the data are now stationary.
+
+
+```{r}
+#| warning: false
+aus_electric2 |> autoplot(Electricity)
+```
+It noticeable that the variance in the differences is not constant.
+
+```{r}
+aus_electric3 <- aus_electric |> 
+  mutate(Electricity = log(Electricity) |> difference(4) |> difference())
+aus_electric3 |> 
+  features(Electricity, unitroot_kpss)
+```
+
+```{r}
+#| warning: false
+aus_electric3 |> autoplot(Electricity)
+```
+By replacing the box_cox transformation with the log function, the variance is now more constant.
+
+### c
+
+Identify a couple of ARIMA models that might be useful in describing the time series. Which of your models is the best according to their AIC values?
+
+```{r}
+#| warning: false
+aus_electric3 |> 
+  gg_tsdisplay(Electricity, plot_type = "partial")
+```
+Looking firstly at the ACF, the significant spike at lag 1 suggests a non-seasonal MA(1), the seasonal spike at lag 4 suggests a seasonal MA(1), or ARIMA(0,1,1)(0,1,1)[4]. Alternatively, looking at the PACF to choose the non-seasonal part of the model, the spike at lag 1 suggests an MA(1). The seasonal part of the model is taken from the ACF resulting in the model ARIMA(0,1,1)(0,1,1)[4]. The same model as before.
+
+```{r}
+fit <- aus_electric |> 
+  model(
+    arima_011011 = ARIMA(log(Electricity) ~ pdq(0,1,1) + PDQ(0,1,1)),
+    arima_011111 = ARIMA(log(Electricity) ~ pdq(0,1,1) + PDQ(1,1,1)),
+    arima_111011 = ARIMA(log(Electricity) ~ pdq(1,1,1) + PDQ(0,1,1)),
+        )
+report(fit)
+```
+
+```{r}
+fit2 <- aus_electric |> 
+  model(ARIMA(log(Electricity)))
+report(fit2)
+```
+According to the ARIMA function ARIMA(1,1,1)(0,1,1)[4] is the best model, which better than the initial guess.
+
+### d
+
+Estimate the parameters of your best model and do diagnostic testing on the residuals. Do the residuals resemble white noise? If not, try to find another ARIMA model which fits better.
+
+```{r}
+fit3 <- aus_electric |> 
+  model(ARIMA(log(Electricity) ~ pdq(1,1,1) + PDQ(0,1,1)))
+gg_tsresiduals(fit3)
+
+```
+
+```{r}
+augment(fit3) |>
+  features(.innov, ljung_box, lag = 10, dof = 3)
+```
+With a p-value of 0.077 the ljung_box test result skates close to the thresold value of 0.05 but we can still fail to reject the null hypothesis, or in other words, the data are indistinguishable from white noise.
+
+### e 
+
+Forecast the next 24 months of data using your preferred model.
+
+```{r}
+fit3 |> 
+  forecast(h=24) |> 
+  autoplot(aus_electric)
+```
+
+### f 
+
+Compare the forecasts obtained using ETS().
+
+```{r}
+aus_electric_fit <- aus_electric |> model(ETS(log(Electricity)))
+report(aus_electric_fit)
+```
+```{r}
+aus_electric_fit |> forecast(h = 24) |> autoplot(aus_electric)
+```
+```{r}
+accuracy(fit3) |> select(RMSE, MAE, MASE)
+accuracy(aus_electric_fit) |> select(RMSE, MAE, MASE)
+```
+
+Here, the ARIMA model has better accuracy statistics.
