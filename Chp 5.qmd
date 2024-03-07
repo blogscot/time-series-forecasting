@@ -4,11 +4,9 @@ author: "Iain Diamond"
 format: 
   html:
     code-fold: true
-editor: visual
 ---
 
 For when I get stuck [Taha Ahmad Solutions](https://rstudio-pubs-static.s3.amazonaws.com/1085722_6a584602005b456e87d51f7b477a4bf8.html)
-
 
 ## Chapter 5 Exercises
 
@@ -16,11 +14,13 @@ For when I get stuck [Taha Ahmad Solutions](https://rstudio-pubs-static.s3.amazo
 # load the libraries
 library(fpp3)
 ```
+
 # Exercise 1
 
-Produce forecasts for the following series using whichever of NAIVE(y), SNAIVE(y) or RW(y ~ drift()) is more appropriate in each case:
+Produce forecasts for the following series using whichever of NAIVE(y), SNAIVE(y) or RW(y \~ drift()) is more appropriate in each case:
 
 ## Australian Population (global_economy)
+
 ```{r}
 aus_population <- global_economy |> 
   filter(Country == "Australia")
@@ -28,6 +28,7 @@ aus_population <- global_economy |>
 aus_population |> 
   autoplot(Population)
 ```
+
 I included the graph below for my own curiosity and to learn about scaling.
 
 ```{r}
@@ -36,7 +37,6 @@ autoplot(aus_population, scale(GDP/Population), color="black", linetype="dashed"
   labs(title="Australian Population, GDP per capita (dashed)",
        y="Scaled Population, GDP per capita")
 ```
-
 
 ```{r}
 aus_population_fc <- aus_population |> 
@@ -47,6 +47,7 @@ aus_population_fc |>
   autoplot(aus_population, level = 90) +
   labs(title = "Australian Population Forecast")
 ```
+
 ## Bricks (aus_production)
 
 ```{r}
@@ -58,6 +59,7 @@ bricks <- aus_production |>
 
 bricks |> autoplot(Bricks)
 ```
+
 ```{r}
 aus_brick_fc <- bricks |> 
   model(Seasonal = SNAIVE(Bricks ~ lag("4 years"))) |> 
@@ -74,6 +76,7 @@ aus_brick_fc |>
 lambs <- aus_livestock |> filter(Animal == "Lambs" & State == "New South Wales")
 lambs |> autoplot(Count)
 ```
+
 ```{r}
 aus_lamb_fc <- lambs |> 
   model(Seasonal = SNAIVE(Count ~ lag("10 years"))) |> 
@@ -83,12 +86,14 @@ aus_lamb_fc |>
   autoplot(lambs, level = 85) +
   labs(title = "Australian Lamb Forecast")
 ```
+
 ## Household wealth (hh_budget)
 
 ```{r}
 wealth <- hh_budget |> select(Wealth)
 wealth |> autoplot(Wealth)
 ```
+
 ```{r}
 wealth_fc <- wealth |> 
   model(Drift = NAIVE(Wealth ~ drift())) |> 
@@ -98,11 +103,14 @@ wealth_fc |>
   autoplot(wealth, level = 90) +
   labs(title = "Wealth Forecast")
 ```
+
 ## Australian takeaway food turnover (aus_retail)
+
 ```{r}
 takeout <- aus_retail |> filter(Industry == 'Takeaway food services')
 takeout
 ```
+
 ```{r}
 takeout_turnover <- takeout |> 
   group_by(Industry) |> 
@@ -112,6 +120,7 @@ takeout_turnover |> autoplot(Turnover) +
   labs(title = "Australian Takeaway Food Services")
   
 ```
+
 The variance is increasing over time. Time for a transformation!
 
 ```{r}
@@ -122,13 +131,12 @@ lambda
 
 This lambda value is fairly close to zero, so a log transform should balance the variance well enough to aid in forecasting.
 
-
 ```{r}
 takeout_turnover |> autoplot(log(Turnover)) +
   labs(title = "Australian Takeaway Food Services")
 ```
-As I understand it transforming the Turnover to reduce the variance helps with forecasting. The results are untransformed in the background automatically by the forecast package.
 
+As I understand it transforming the Turnover to reduce the variance helps with forecasting. The results are untransformed in the background automatically by the forecast package.
 
 ```{r}
 takeout_fc <- takeout_turnover |> 
@@ -142,6 +150,7 @@ takeout_fc |>
   autoplot(takeout_turnover, level = 90) +
   labs(title = "Takeaway Food Services Forecast")
 ```
+
 # Exercise 2
 
 Use the Facebook stock price (data set gafa_stock) to do the following:
@@ -160,8 +169,8 @@ gafa_stock |>
 
 ```
 
- Produce forecasts using the drift method and plot them.
- 
+Produce forecasts using the drift method and plot them.
+
 ```{r}
 fb_stock_training <- fb_stock |> 
   filter(yearmonth(Date) < yearmonth("2018 Jan"))
@@ -180,6 +189,7 @@ fb_stock_fc <- fb_stock_training |>
   model(Drift = NAIVE(Close ~ drift())) |> 
   forecast(new_data = fb_stock_test) 
 ```
+
 ```{r}
 #| message: false
 
@@ -195,6 +205,7 @@ fb_stock_fc |>
        title = "Facebook daily closing stock prices") +
   guides(colour = guide_legend(title = "Forecast"))
 ```
+
 The forecast produced by the drift benchmark, as this graph illustrates, offers very poor accuracy given the sudden change in stock values immediately following the training period. Given the benefit of hindsight, a naïve model (using the last closing stock price) would have been more accurate, while a mean model would have provided the best results.
 
 ## Exercise 3
@@ -208,6 +219,7 @@ recent_production <- aus_production |>
 recent_production |> 
   autoplot(Beer)
 ```
+
 ```{r}
 #| warning: false
 
@@ -217,8 +229,8 @@ fit <- recent_production |> model(SNAIVE(Beer))
 # Look at the residuals
 fit |> gg_tsresiduals()
 ```
-The ACF of the residuals shows a strong correlation around 1 year which reflects the seasonality of the 
-Beer time plot. The histogram of the residuals as zero mean and is not quite normally distributed. It is in fact bi-modal.
+
+The ACF of the residuals shows a strong correlation around 1 year which reflects the seasonality of the Beer time plot. The histogram of the residuals as zero mean and is not quite normally distributed. It is in fact bi-modal.
 
 ```{r}
 fit |> forecast() |> autoplot(recent_production)
@@ -235,12 +247,15 @@ autoplot(aug, .innov) +
   labs(y = "Beer",
        title = "Residuals from the naïve method")
 ```
+
 ```{r}
 aug |> features(.innov, box_pierce, lag = 8)
 ```
+
 ```{r}
 aug |> features(.innov, ljung_box, lag = 8)
 ```
+
 Both the Box-Pierce and Ljung-Box values are significant indicating we can accept the null hypothesis that the results are distinguishable from white noise. This suggests that there remains unexplained information in the model.
 
 ```{r}
@@ -251,6 +266,7 @@ recent_production |>
   components() |>
   autoplot()
 ```
+
 Decomposing the time plot shows there is a gradual negative trend in beer consumption with dips around 1996, 2005 and 2007.
 
 ## Exercise 4
@@ -265,16 +281,17 @@ aus_exports <- global_economy |>
 aus_exports |> 
   autoplot(Exports)
 ```
+
 ```{r}
 #| warning: false
 fit <- aus_exports |> model(NAIVE(Exports)) 
 
 fit |> gg_tsresiduals()
 ```
+
 ```{r}
 fit |> forecast() |> autoplot(aus_exports)
 ```
-
 
 ```{r}
 #| warning: false
@@ -289,7 +306,8 @@ aug |> features(.innov, box_pierce, lag = 10)
 ```{r}
 aug |> features(.innov, ljung_box, lag = 10)
 ```
-Both Box-Pierce and Ljung-Box p-values are above the arbitrary threshold of 5% which means that we can reject the null hypothesis: these data are indistiguishable from white noise.
+
+Both Box-Pierce and Ljung-Box p-values are above the arbitrary threshold of 5% which means that we can reject the null hypothesis: these data are indistinguishable from white noise.
 
 ```{r}
 #| warning: false
@@ -300,6 +318,7 @@ bricks <- aus_production |>
 
 bricks |> autoplot(Bricks)
 ```
+
 ```{r}
 #| warning: false
 
@@ -309,12 +328,12 @@ fit <- bricks |> model(SNAIVE(Bricks ~ lag("year")))
 # Look at the residuals
 fit |> gg_tsresiduals()
 ```
+
 The baseline SNAIVE model shows lots of problems. Analysis of the residuals has a range of -200 to 100 which is far too high. The ACF plot shows large amounts of autocorrelation and the histogram is right-skewed with non-zero mean.
 
 ```{r}
 fit |> forecast() |> autoplot(bricks)
 ```
-
 
 ```{r}
 bricks |>
@@ -322,8 +341,8 @@ bricks |>
   components() |>
   autoplot()
 ```
-Contrast the SNAIVE model's residuals with the irregular data produced using a 13ARMIMA_SEATS model.
 
+Contrast the SNAIVE model's residuals with the irregular data produced using a 13ARMIMA_SEATS model.
 
 ## Exercise 5
 
@@ -334,6 +353,7 @@ aus_livestock |>
   filter(State == 'Victoria') |>
   autoplot(Count)
 ```
+
 ### Bull Production
 
 ```{r}
@@ -341,12 +361,14 @@ bull_production <- aus_livestock |>
   filter(State == 'Victoria' & Animal == "Bulls, bullocks and steers") 
 bull_production |> autoplot(Count)
 ```
+
 ```{r}
 #| warning: false
 
 fit <- bull_production |> model(SNAIVE(Count ~ lag("2 years"))) 
 fit |> gg_tsresiduals()
 ```
+
 ```{r}
 fit |> forecast() |> autoplot(bull_production)
 ```
@@ -358,12 +380,12 @@ sheep_production <- aus_livestock |>
   filter(State == 'Victoria' & Animal == "Sheep") 
 sheep_production |> autoplot(Count)
 ```
+
 ```{r}
 #| warning: false
 
 sheep_production |> model(SNAIVE(Count)) |> gg_tsresiduals()
 ```
-
 
 ```{r}
 #| warning: false
@@ -372,9 +394,11 @@ sheep_production |> model(SNAIVE(Count)) |> gg_tsresiduals()
 fit <- sheep_production |> model(SNAIVE(log(Count)))
 fit |> gg_tsresiduals()
 ```
+
 ```{r}
 fit |> forecast() |> autoplot(sheep_production)
 ```
+
 Overall, these benchmark forecasts are unlikely to be very accurate, however, they do provide a reasonable 'sane' set of results upon which we could endeavour to improve.
 
 ## Exercise 7
@@ -383,6 +407,7 @@ Overall, these benchmark forecasts are unlikely to be very accurate, however, th
 myseries <- aus_retail |> filter(`Series ID` == 'A3349763L')
 myseries |> head()
 ```
+
 Create a training dataset consisting of observations before 2011
 
 ```{r}
@@ -395,6 +420,7 @@ Check that your data have been split appropriately.
 autoplot(myseries, Turnover) +
   autolayer(myseries_train, Turnover, colour = "red", )
 ```
+
 Fit a seasonal naïve model using SNAIVE() applied to your training data (myseries_train)
 
 ```{r}
@@ -403,10 +429,12 @@ Fit a seasonal naïve model using SNAIVE() applied to your training data (myseri
 fit <- myseries_train |> model(SNAIVE(Turnover ~ lag("3 years")))
 fit |> gg_tsresiduals()
 ```
+
 ```{r}
 fc <- fit |> forecast(new_data = anti_join(myseries, myseries_train))
 fc |> autoplot(myseries)
 ```
+
 Without even having to look at the accuracy statistics the graph above shows how arbitrary the forecast is. When the Turnover spikes in the mid-2010s the forecast is significantly in error. It is only because the Turnover figures happen to fall that the forecast statistics appear reasonable at all.
 
 ```{r}
@@ -416,6 +444,7 @@ fit |> accuracy() |> select(c(-State,-Industry, -.model, -.type))
 ```{r}
 fc |> accuracy(myseries) |> select(c(-State,-Industry, -.model, -.type))
 ```
+
 The accuracy figures for the forecast look better than the actually are, as the forecast mismatch against actual turnover in the graph above demonstrates. If the forecast line actually tracked the actual turnover line then these figures might have some real significance. It is imperative to see how the forecast model performs visually to ascertain what level of confidence to give to the statistical values produced in terms of accuracy.
 
 ## Exercise 8
@@ -426,6 +455,7 @@ Consider the number of pigs slaughtered in New South Wales (data set aus_livesto
 pigs <- aus_livestock |> filter(State == 'New South Wales', Animal == 'Pigs') 
 pigs
 ```
+
 Create a training set of 486 observations, withholding a test set of 72 observations (6 years).
 
 ```{r}
@@ -437,6 +467,7 @@ pigs_test
 autoplot(pigs_training, Count) +
   autolayer(pigs_test, Count, colour = 'red')
 ```
+
 Try using various benchmark methods to forecast the training set and compare the results on the test set. Which method did best?
 
 ```{r}
@@ -461,7 +492,6 @@ fc <- fit2 |> forecast(new_data = pigs_test)
 fc |>  autoplot(pigs)
 ```
 
-
 ```{r}
 #| warning: false
 #| message: false
@@ -483,6 +513,7 @@ fit4 |> gg_tsresiduals()
 fc <- fit4 |> forecast(new_data = pigs_test)
 fc |>  autoplot(pigs)
 ```
+
 ```{r}
 fit1 |> accuracy() |> select(c(-Animal, -State, -.model, -.type))
 fit2 |> accuracy() |> select(c(-Animal, -State, -.model, -.type))
@@ -492,7 +523,7 @@ fit4 |> accuracy() |> select(c(-Animal, -State, -.model, -.type))
 
 ## Exercise 11
 
-We will use the Bricks data from aus_production (Australian quarterly clay brick production 1956–2005) for this exercise.
+We will use the Bricks data from aus_production (Australian quarterly clay brick production 1956--2005) for this exercise.
 
 ```{r}
 bricks <- aus_production |> 
@@ -500,12 +531,12 @@ bricks <- aus_production |>
   filter_index("1956 Q1" ~ "2005 Q2")
 bricks
 ```
+
 ```{r}
 bricks |> 
   autoplot(Bricks) +
   geom_smooth(formula = "y ~ x", method = "loess", se = FALSE)
 ```
-
 
 Use an STL decomposition to calculate the trend-cycle and seasonal indices. (Experiment with having fixed or changing seasonality.)
 
@@ -516,6 +547,7 @@ brick_components <- bricks |>
 
 brick_components |> autoplot(Bricks)
 ```
+
 Using a 'periodic' season window produces a very stable season_year plot while the remainder looks like random noise. Slightly narrower ranges for remainder are possible but at the cost of destablising the season_year plot. Which is more significant?
 
 Use a naïve method to produce forecasts of the seasonally adjusted data.
@@ -531,7 +563,6 @@ dcmp |>
        title = "Australian Brick Production")
 ```
 
-
 ```{r}
 fit_dcmp <- bricks |> 
   model(stlf = decomposition_model(
@@ -542,7 +573,6 @@ fit_dcmp <- bricks |>
 dcmp_fc <- fit_dcmp |> forecast(h = 10)
 dcmp_fc
 ```
-
 
 ```{r}
 dcmp_fc |>
@@ -558,6 +588,7 @@ Do the residuals look uncorrelated?
 
 fit_dcmp |> gg_tsresiduals()
 ```
+
 There is some correlation in the residuals.
 
 Repeat with a robust STL decomposition. Does it make much difference?
@@ -583,4 +614,5 @@ dcmp2 |>
   labs(y = "Number of Bricks (million)",
        title = "Australian Production")
 ```
+
 The latter model has narrower confidence levels which suggests that this model's predictions should be more accurate. However, this model is basing its forecasts only on the last 2 years of data, ignoring the earlier historic data. Is this really a reasonable assumtpion to make - I very much doubt it.

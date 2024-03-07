@@ -5,13 +5,11 @@ date: "25/1/2024"
 format: 
   html:
     code-fold: true
-editor: visual
 ---
 
 # Chapter 2
 
 For when I get stuck [Taha Ahmad Solutions](https://rstudio-pubs-static.s3.amazonaws.com/1078298_5dd70f8a67734f2aa6f9b79c86b5559d.html)
-
 
 ```{r}
 library(fpp3)
@@ -25,6 +23,7 @@ Use filter() to find what days corresponded to the peak closing price for each o
 gafa_stock |> 
   features(Close, features = list(max=max))
 ```
+
 The max values above have been rounded to 2 decimal places so testing for equality isn't possible. Also, I'd like be able to write a single thread line to find the dates but my R-fu is not strong enough yet.
 
 ```{r}
@@ -34,6 +33,7 @@ gafa_stock |> filter(Symbol == "AMZN", Close >= 2039.51) |>  pull(Date)
 ```{r}
 gafa_stock |> filter(Symbol == "FB", Close >= 217.50) |> pull(Date)
 ```
+
 ```{r}
 gafa_stock |> filter(Symbol == "GOOG", Close >= 1268.32) |> pull(Date)
 ```
@@ -64,12 +64,14 @@ data <- readr::read_csv("data/tute1.csv")
 ```
 
 Convert the data to time series
+
 ```{r}
 data |>
   mutate(Quarter = yearquarter(Quarter)) |>
   as_tsibble(index = Quarter) -> mytimeseries
 data
 ```
+
 Construct time series plots of each of the three series
 
 ```{r}
@@ -130,6 +132,7 @@ data <- readxl::read_excel("data/tourism.xlsx")
 ```{r}
 tsibble::tourism
 ```
+
 Create a tsibble which is identical to the tourism tsibble from the tsibble package
 
 ```{r}
@@ -148,6 +151,7 @@ tourism |>
 ```
 
 Create a new tsibble which combines the Purposes and Regions, and just has total trips by State.
+
 ```{r}
 total_trips_state <- tourism |>
   group_by(State) |>
@@ -158,7 +162,6 @@ total_trips_state
 ```{r}
 total_trips_state |> autoplot(TotalTrips)
 ```
-
 
 ## Question 6
 
@@ -172,10 +175,10 @@ aus_arrivals |> gg_subseries(Arrivals)
 
 ## Question 7
 
-Explore your chosen retail time series ...
-Can you spot any seasonality, cyclicity and trend?
+Explore your chosen retail time series ... Can you spot any seasonality, cyclicity and trend?
 
 ```{r}
+set.seed(42)
 myseries <- aus_retail |>
   filter(`Series ID` == sample(aus_retail$`Series ID`, 1))
 
@@ -188,7 +191,7 @@ myseries |> ACF(Turnover) |> autoplot()
 
 ## Question 8
 
-Use the following graphics functions: autoplot(), gg_season(), gg_subseries(), gg_lag(), ACF() and explore features from the following time series: “Total Private” Employed from us_employment, Bricks from aus_production, Hare from pelt, “H02” Cost from PBS, and Barrels from us_gasoline.
+Use the following graphics functions: autoplot(), gg_season(), gg_subseries(), gg_lag(), ACF() and explore features from the following time series: "Total Private" Employed from us_employment, Bricks from aus_production, Hare from pelt, "H02" Cost from PBS, and Barrels from us_gasoline.
 
 ```{r}
 total_private <- us_employment |>
@@ -200,6 +203,7 @@ total_private |> gg_subseries(Employed)
 total_private |> gg_lag(Employed)
 total_private |> ACF(Employed) |> autoplot()
 ```
+
 ```{r}
 #| warning: false
 
@@ -216,6 +220,7 @@ pelt |> autoplot(Hare)
 pelt |> gg_lag(Hare)
 pelt |> ACF(Hare) |> autoplot()
 ```
+
 ```{r}
 pbs_h02 <- PBS |> filter(ATC2 == 'H02')
 pbs_h02 |> autoplot(Cost)
@@ -235,6 +240,7 @@ gas_prices_month <- us_gasoline |>
 ```
 
 The less easy way
+
 ```{r}
 gas_prices_month2 <- us_gasoline |>
    as_tibble() |>
@@ -277,7 +283,7 @@ lynx_pelts |> autoplot(Lynx)
 lynx_pelts |> ACF(Lynx) |> autoplot()
 ```
 
-Lynx pelts is cyclic not seasonal, whereas monthly deaths is seasonal. 
+Lynx pelts is cyclic not seasonal, whereas monthly deaths is seasonal.
 
 Matches: 1 B, 2 A, 3 D, 4 C
 
@@ -295,6 +301,7 @@ aus_livestock |>
 slaughtered_pigs_victoria1 |> autoplot(Count)
 slaughtered_pigs_victoria1 |> ACF(Count) |> autoplot()
 ```
+
 How do they differ from white noise? If a longer period of data is used, what difference does it make to the ACF?
 
 ```{r}
@@ -325,5 +332,4 @@ dgoog |> autoplot(diff)
 dgoog |> ACF(diff) |> autoplot()
 ```
 
-Trading only happens on weekdays, so it's necessary to re-index with a continuous variable to avoid gaps in the data.
-ACF is pure white noise. No pattern discerned in data.
+Trading only happens on weekdays, so it's necessary to re-index with a continuous variable to avoid gaps in the data. ACF is pure white noise. No pattern discerned in data.

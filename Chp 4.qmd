@@ -5,7 +5,6 @@ date: "25/1/2024"
 format: 
   html:
     code-fold: true
-editor: visual
 ---
 
 # Chapter 4 Exercise Solutions
@@ -29,7 +28,6 @@ PBS |>
         Concession == 'Concessional') |> 
   autoplot(Scripts, show.legend = FALSE , na.rm = TRUE)
 ```
-
 
 ## Question 1
 
@@ -64,6 +62,7 @@ sd_values
 ```
 
 There's no point in drawing either of the first two rows. So let's choose the third!
+
 ```{r}
 c(concession, type, atc1, atc2) %<-% sd_values[3,][1:4]
 
@@ -98,7 +97,6 @@ tourism_features |>
   glimpse()
 ```
 
-
 Which is the peak quarter for holidays in each state?
 
 ```{r, message=FALSE, warning=FALSE}
@@ -110,11 +108,10 @@ tourism_features |>
 ## Question 3
 
 Use a feature-based approach to look for outlying series in the PBS data. What is unusual about the series you identify as "outliers"
+
 ```{r}
 library(broom)
 ```
-
-
 
 ```{r message=FALSE, warning=FALSE}
 pbs_features <- PBS |> 
@@ -136,16 +133,19 @@ results$rotation <- -1*results$rotation
 #display principal components
 results$rotation
 ```
+
 ```{r}
 biplot(results, scale = 0)
 ```
 
 #calculate total variance explained by each principal component
+
 ```{r}
 var_explained_df <- data.frame(PC = 1:20, 
                                var_explained = results$sdev^2 / sum(results$sdev^2))
 var_explained_df
 ```
+
 ```{r}
 var_explained_df %>%
   ggplot(aes(x=PC,y=var_explained, group=1))+
@@ -153,7 +153,6 @@ var_explained_df %>%
   geom_line() +
   labs(title="Scree plot: PCA on scaled data")
 ```
-
 
 ```{r}
 pcs <- results |> augment(pbs_features)
@@ -166,9 +165,11 @@ pcs |>
   geom_point() +
   theme(aspect.ratio = 1)
 ```
+
 ```{r}
 pcs |> filter(.fittedPC2 > 6)
 ```
+
 ```{r}
 PBS |> 
   filter(ATC1=='C' & 
