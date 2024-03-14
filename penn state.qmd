@@ -1,0 +1,208 @@
+---
+title: "Missouri Creek Time Series Analysis"
+author: "Iain Diamond"
+format: 
+  html:
+    toc: true
+    code-fold: true
+---
+
+# Finding the best Time Series model
+
+In my recent studies into time series analysis I've come across a few models including ETS and ARIMA. While reading through Penn States online learning materials I attempt to analyze their examples using the fable library. However, I become frustrated because I wasn't able to reconstruct their time series plots using the approaches I'd learned up till that point. Also, I was increasingly unhappy that Penn States time series data doesn't actually contain any time information. So I decided to download some real raw data, in this case Missouri Creek flow data so I could use data with timestamp information included.
+
+```{r}
+library(fpp3)
+library(purrr)
+```
+## Missouri Creek Flow Analysis
+
+The data is read in as CSV data. I ended up editing the file by the hand (it's a small file) to remove the end-of-line commas which were producing junk data once read in. As this is a one-off analysis it's acceptable.
+```{r}
+missouricreekflow <- read.csv("data/MISSOURI CREEK NEAR GOLD PARK, CO._SummaryTable_202403110927.csv",
+                              sep = ',')
+names(missouricreekflow) <- c("Year", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Total", "Units")
+missouricreekflow
+```
+Weirdly the data table starts on October. Perhaps, this makes sense domestically (e.g. data collection starts in the Fall), but some data wrangling is required to reorder and reshape the data into a tidyverse format.
+
+```{r}
+flow_series <- missouricreekflow |> 
+  relocate(c(Oct, Nov, Dec), .after = Sep) |> 
+  select(-Total, -Units) |> 
+  pivot_longer(-Year, names_to = "Month") |> 
+  transmute(Date = yearmonth(paste(Year, Month)),
+           value = value) |>
+  as_tsibble(index = Date, regular = TRUE)
+flow_series
+```
+
+Now, we have the data in a tsibble which we can plot.
+
+```{r}
+flow_series |> autoplot(value)
+```
+The plot has no trend, but there appears to be some seasonality as well as fluctuating variance which make the time series non-stationary. Let's apply the log function to help out.
+
+
+```{r}
+flow_series |> autoplot(log(value))
+```
+
+
+
+```{r}
+flow_series |> features(log(value), unitroot_nsdiffs)
+```
+
+
+```{r}
+flow_series |> features(log(value) |> difference(12), unitroot_ndiffs)
+```
+Tests suggest the data need to be differenced seasonally.
+
+```{r}
+#| warning: false
+flow_series |> autoplot(difference(log(value), 12))
+```
+
+
+```{r}
+#| warning: false
+gg_tsdisplay(flow_series, difference(log(value), 12), plot_type = "partial", lag_max = 36)
+```
+Both the ACF and PACF have a spike at lag 1, so either a AR(1) or MA(1) non-seasonal model would seem to fit. The PACF has stronger spikes at 12 and 24 or a AR(1) seasonal model look like the best approach.
+
+```{r}
+fit <- flow_series |> model(
+  logauto = ARIMA(log(value), stepwise = TRUE, greedy = TRUE),
+  arima001011 = ARIMA(log(value) ~ pdq(1,0,0) + PDQ(1,1,0))
+  )
+glance(fit)
+```
+Well the algorithm beat my guess by quite a bit, but at least I was in the right ballpark.
+
+```{r}
+fit |> select(logauto) |> report()
+```
+The algorithm choose a ARIMA(1,0,0)(0,1,1). Apparently, seasonal MA(1) was the way to go.
+
+```{r}
+fit |> select(logauto) |> gg_tsresiduals()
+```
+The residuals appear to fit with our assumption, that they are independent and identically distributed.
+
+```{r}
+fit |> select(logauto) |>  
+  augment() |> 
+  features(.innov, ljung_box, lag = 12)
+```
+The ljung_box p-value is very big indicating that the innovation residuals are white noise.
+
+
+```{r}
+ fit |> 
+  select(logauto) |> 
+  forecast(h = 24) |> 
+  autoplot(flow_series |> tail(100))
+```
+
+Et voilà, we have a forecast for the next two years. This is more or less what I expected to see when I plotted the Penn State Colorado dataset. According to their website this is monthly data, which means it's covering 50 years of flow data!
+
+## Colorado Flow Analysis
+
+```{r}
+coloradoflow <- scan("data/coloradoflow.dat")
+```
+The Penn State Colorado data doesn't have any time data attached. This it seems is a prerequisite for the fable package - the algorithm makes use of these data internally to make its predictions, I'm guessing. Not having it there is kind of a problem.
+
+In light of this supposition, I'm attaching some dates to help out.
+
+```{r}
+dates <- seq(from=date("1957-01-01"), by = "month", length.out = 600)
+penn_series <-  tsibble(Date = yearmonth(dates), 
+                      Flow = coloradoflow,
+                      index = Date,
+                      regular = TRUE)
+penn_series
+```
+
+You can see that the tsibble contains monthly data (i.e. indicated by the "[1M]")
+
+```{r}
+autoplot(penn_series, Flow)
+```
+These Colorado data show a similar pattern to the Missouri data: no trend, non-constant variance and some seasonality. Applying a log transformation to deal with the variance issue we get,
+
+```{r}
+autoplot(penn_series, log(Flow))
+```
+
+```{r}
+penn_series |> features(log(Flow), unitroot_nsdiffs)
+```
+Testing shows that one level of seasonal differencing is required.
+
+```{r}
+penn_series |> features(log(Flow) |> difference(12), unitroot_ndiffs)
+```
+After which no further differencing is required. The data are now stationary.
+
+```{r}
+#| warning: false
+gg_tsdisplay(penn_series, difference(log(Flow), 12), plot_type = "partial", lag_max = 36)
+```
+
+For non-seasonality it looks to me that AR(1) is the most suitable model. Seasonality-wise, I would also choose MA(1). This is purely based on the fact that in the PACF plot the spikes are decaying.
+
+
+
+```{r}
+fit <- penn_series |> model(
+  logauto = ARIMA(log(Flow), stepwise = TRUE, greedy = TRUE),
+  arima100011 = ARIMA(log(Flow) ~ 1 + pdq(1,0,0) + PDQ(0,1,1)),
+  )
+glance(fit)
+```
+Surprisingly, my guess is better than the one selected by the ARIMA algorithm. There's a first for everything!
+
+```{r}
+fit |> select(arima100011) |> report()
+```
+After toggling some switches, the best the ARIMA algorithm found was using ARIMA(1,0,1)(2,1,0)[12] which had a AICc of 508.38.
+
+```{r}
+fit |> select(arima100011) |>  
+  augment() |> 
+  features(.innov, ljung_box, lag = 12)
+```
+The Ljung-box returns a large number indicating that the residuals are white noise.
+
+
+```{r}
+fit |> select(arima100011) |> gg_tsresiduals()
+```
+
+The residual plot confirms our findings.
+
+```{r}
+augment(fit) |> 
+  ggplot(aes(x=.fitted)) +
+  geom_point(aes(y=.innov), shape=21)
+```
+As the Penn State website points out there is non-constant variance in the residuals (here log transformed) versus the fitted values. This is foreshadowing future lessons using ARCH models.
+
+
+```{r}
+ fit |> 
+  select(arima100011) |> 
+  forecast(h = 24) |> 
+  autoplot(penn_series |> tail(200))
+```
+
+This is the sort of graph I was expecting to see with the Penn State data. Having the dates included in the data does appear to be important when using the fable library.
+
+
+# Reference
+
+-[4.1 Seasonal ARIMA models](https://online.stat.psu.edu/stat510/lesson/4/4.1)
