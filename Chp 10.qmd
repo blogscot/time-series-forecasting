@@ -107,8 +107,7 @@ There are quite a few similarities in the intercept, festival, trend and seasona
 How much difference does the ARIMA error process make to the forecasts?
 
 ```{r}
-souvenirs_tslm_fit |> accuracy()
-souvenirs_arima_fit |> accuracy()
+bind_rows(souvenirs_tslm_fit |> accuracy(), souvenirs_arima_fit |> accuracy())
 ```
 
 The ARIMA model is significantly more accurate.
@@ -207,7 +206,7 @@ vic_elec_fit |> gg_tsresiduals()
 ```{r}
 vic_elec_fit |>  
   augment() |> 
-  features(.innov, ljung_box, dof = 4, lag = 10) |> 
+  features(.innov, ljung_box, dof = 13, lag = 24) |> 
   pull(lb_pvalue)
 ```
 
@@ -242,7 +241,7 @@ vic_elec_fit2 |> gg_tsresiduals()
 ```{r}
 vic_elec_fit |>  
   augment() |> 
-  features(.innov, ljung_box, dof = 4, lag = 10) |> 
+  features(.innov, ljung_box, dof = 13, lag = 24) |> 
   pull(lb_pvalue)
 ```
 
@@ -258,13 +257,8 @@ vic_elec_fit3 <- generate_data(27) |>
 report(vic_elec_fit3)
 ```
 ```{r}
-acc2 <- vic_elec_fit2 |> accuracy() |> select(RMSE, MAE, MAPE)
-acc2
-```
-
-```{r}
-acc3 <- vic_elec_fit3 |> accuracy() |> select(RMSE, MAE, MAPE)
-acc3
+bind_rows(vic_elec_fit3 |> accuracy(), vic_elec_fit2 |> accuracy()) |> 
+  select(RMSE, MAE, MAPE)
 ```
 
 The accuracy improvements between models due to use the log transformation, as percentages:
@@ -274,3 +268,93 @@ round((acc3$RMSE - acc2$RMSE) / acc3$RMSE * 100, 2)
 round((acc3$MAE - acc2$MAE) / acc3$MAE * 100, 2)
 round((acc3$MAPE - acc2$MAPE) / acc3$MAPE * 100, 2)
 ```
+
+## Exercise 4
+
+This exercise concerns aus_accommodation: the total quarterly takings from accommodation and the room occupancy level for hotels, motels, and guest houses in Australia, between January 1998 and June 2016. Total quarterly takings are in millions of Australian dollars.
+
+```{r}
+aus_accommodation
+```
+
+```{r}
+aus_accommodation |> autoplot(Takings, show.legend = FALSE) + 
+  facet_wrap(vars(State), scales = "free_y") +
+  labs(x = "Quarter", y = "CPI adjusted Takings")
+```
+
+### a
+
+Compute the CPI-adjusted takings and plot the result for each state
+
+```{r}
+accommodation_adjusted <- aus_accommodation |> 
+  mutate(Adjusted = Takings / CPI * 100)
+accommodation_adjusted
+```
+
+
+```{r}
+accommodation_adjusted |> 
+  autoplot(Adjusted, show.legend = FALSE) + 
+  facet_wrap(vars(State), scales = "free_y") +
+  labs(x = "Quarter", y = "CPI adjusted Takings")
+```
+
+### b
+
+For each state, fit a dynamic regression model of CPI-adjusted takings with seasonal dummy variables, a piecewise linear time trend with one knot at 2008 Q1, and ARIMA errors.
+
+```{r}
+fit <- accommodation_adjusted |> 
+  model(ARIMA(Adjusted ~ trend(knots = yearquarter("2008 Q1")) + season()))
+
+glance(fit)
+```
+
+### c
+
+Check that the residuals of the model look like white noise.
+
+```{r}
+sapply(fit$State, \(state) fit |> filter(State == state) |> gg_tsresiduals() |> print()) -> tmp
+```
+### d 
+
+Forecast the takings for each state to the end of 2017. (Hint: You will need to produce forecasts of the CPI first.)
+
+To calculate the CPI adjusted takings for the next six quarters, we forecast the CPI and un-adjusted takings figures then use these to produce the adjusted takings as normal.
+
+```{r}
+cpi_fc <- aus_accommodation |> 
+  model(ARIMA(CPI)) |> 
+  forecast(h = 6) |> 
+  as_tsibble() |>
+  select(State, Date, CPI = .mean)
+cpi_fc
+```
+To forecast the takings we fit an un-adjusted model and then use this along with the earlier CPI forecasts to obtain the adjusted takings.
+
+```{r}
+fit2 <- aus_accommodation |> 
+  model(ARIMA(Takings ~ trend(knots = yearquarter("2008 Q1")) + season()))
+
+aus_acc_forecasts <- fit2 |>
+  forecast(new_data = cpi_fc) |>
+  mutate(Takings_adjusted = Takings / CPI * 100,
+         .mean = mean(Takings_adjusted)) |>
+  relocate(State, Date, Takings_adjusted, .mean)
+aus_acc_forecasts
+```
+
+Now alongside the historical adjusted takings we can see our new forecasts.
+
+```{r}
+accommodation_adjusted |> 
+  autoplot(Adjusted) +
+  autolayer(aus_acc_forecasts, .mean)  + 
+  facet_wrap(vars(State), scales = "free_y") +
+  labs(title = "Australian Accommodation", y = "Takings (CPI Adjusted)") +
+  theme(legend.position = "none")
+```
+
