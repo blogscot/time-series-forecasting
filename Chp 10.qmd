@@ -3,6 +3,8 @@ title: "Chp 10.qmd"
 author: "Iain Diamond"
 format: 
   html:
+    html-math-method: mathjax
+    include-in-header: mathjax1.html
     toc: true
     code-fold: true
 ---
@@ -13,6 +15,7 @@ For when I get stuck [Tugas Kelompok](https://rpubs.com/invokerarts/UAS_Eco)
 
 ```{r}
 library(fpp3)
+library(distributional)
 ```
 
 ## Exercise 1
@@ -183,6 +186,7 @@ vic_elec_daily |>
 ```
 
 ```{r}
+#| cache: true
 vic_elec_fit <- vic_elec_daily |> 
   model(ARIMA(log(Demand) ~ Temperature + 
                 Temp2 + 
@@ -210,7 +214,7 @@ vic_elec_fit |>
   pull(lb_pvalue)
 ```
 
-To optimise the knot, I've used the trial and error method, by simply plugging in values into the generate_data function using the _best_ ARIMA model. 
+To optimise the knot, I've used the trial and error method, by simply plugging in values into the generate_data function using the *best* ARIMA model.
 
 Note, it is far faster to tweak the knot value having established the ARIMA model compared with having the ARIMA algorithm search for the best fit model during each run.
 
@@ -222,6 +226,7 @@ vic_elec_fit2 <- generate_data(27) |>
                 1 + pdq(5,1,3) + PDQ(2,0,0)))
 report(vic_elec_fit2)
 ```
+
 Some results:
 
 | knot | AICc     |
@@ -232,12 +237,12 @@ Some results:
 | 28   | -1417.74 |
 | 30   | -1397.78 |
 
-
 Just to confirm that after finding the best knot value the residuals are still well behaved.
 
 ```{r}
 vic_elec_fit2 |> gg_tsresiduals()
 ```
+
 ```{r}
 vic_elec_fit |>  
   augment() |> 
@@ -247,7 +252,6 @@ vic_elec_fit |>
 
 Out of curiousity, I fitted the electricity data without applying a log transformation in order to compare its affect on accuracy. The AICc values are wildly different between using a transformation and not using a transformation, but just how significant is it?
 
-
 ```{r}
 vic_elec_fit3 <- generate_data(27) |> 
   model(ARIMA(Demand ~ Temperature + 
@@ -256,17 +260,10 @@ vic_elec_fit3 <- generate_data(27) |>
                 1 + pdq(5,1,3) + PDQ(2,0,0)))
 report(vic_elec_fit3)
 ```
+
 ```{r}
 bind_rows(vic_elec_fit3 |> accuracy(), vic_elec_fit2 |> accuracy()) |> 
   select(RMSE, MAE, MAPE)
-```
-
-The accuracy improvements between models due to use the log transformation, as percentages:
-
-```{r}
-round((acc3$RMSE - acc2$RMSE) / acc3$RMSE * 100, 2)
-round((acc3$MAE - acc2$MAE) / acc3$MAE * 100, 2)
-round((acc3$MAPE - acc2$MAPE) / acc3$MAPE * 100, 2)
 ```
 
 ## Exercise 4
@@ -293,7 +290,6 @@ accommodation_adjusted <- aus_accommodation |>
 accommodation_adjusted
 ```
 
-
 ```{r}
 accommodation_adjusted |> 
   autoplot(Adjusted, show.legend = FALSE) + 
@@ -319,7 +315,8 @@ Check that the residuals of the model look like white noise.
 ```{r}
 sapply(fit$State, \(state) fit |> filter(State == state) |> gg_tsresiduals() |> print()) -> tmp
 ```
-### d 
+
+### d
 
 Forecast the takings for each state to the end of 2017. (Hint: You will need to produce forecasts of the CPI first.)
 
@@ -333,6 +330,7 @@ cpi_fc <- aus_accommodation |>
   select(State, Date, CPI = .mean)
 cpi_fc
 ```
+
 To forecast the takings we fit an un-adjusted model and then use this along with the earlier CPI forecasts to obtain the adjusted takings.
 
 ```{r}
@@ -358,3 +356,309 @@ accommodation_adjusted |>
   theme(legend.position = "none")
 ```
 
+## Exercise 5
+
+We fitted a harmonic regression model to part of the us_gasoline series in Exercise 5 in Section 7.10. We will now revisit this model, and extend it to include more data and ARMA errors.
+
+### a
+
+Using TSLM(), fit a harmonic regression with a piecewise linear time trend to the full series. Select the position of the knots in the trend and the appropriate number of Fourier terms to include by minimising the AICc or CV value.
+
+Let's start by looking at the data with a loess trend line.
+
+```{r}
+us_gasoline |> 
+  autoplot(Barrels) +
+  geom_smooth(formula = "y ~ x", method = "loess", se = FALSE) 
+```
+
+Let's fit a model with some knots added.
+
+```{r}
+knots <- c(yearweek("2006 W02"), yearweek("2013 W11"))
+
+fit_barrels <- us_gasoline |> 
+  model(TSLM(Barrels ~ trend(knots)))
+
+us_gasoline |> 
+  autoplot(Barrels) +
+  geom_line(data = fitted(fit_barrels), aes(y = .fitted), colour = "cyan")
+```
+
+With some reasonable knots postions, we now fit with various fourier series.
+
+```{r}
+fit_barrels2 <- us_gasoline |> 
+  model(
+    K3 = TSLM(Barrels ~ trend(knots) + fourier(K = 3)),
+    K5 = TSLM(Barrels ~ trend(knots) + fourier(K = 5)),
+    K6 = TSLM(Barrels ~ trend(knots) + fourier(K = 6)),     
+    K7 = TSLM(Barrels ~ trend(knots) + fourier(K = 7)),  
+    K8 = TSLM(Barrels ~ trend(knots) + fourier(K = 8)),     
+    K9 = TSLM(Barrels ~ trend(knots) + fourier(K = 9)),     
+    )
+
+glance(fit_barrels2) |> select(.model, adj_r_squared, AICc, CV) |> arrange(AICc)
+```
+
+It looks like K6 is the winner with AICc -3674.2 and CV 0.07.
+
+### b
+
+Now refit the model using ARIMA() to allow for correlated errors, keeping the same predictor variables as you used with TSLM().
+
+```{r}
+fit_barrels3 <- us_gasoline |> 
+  model(
+    K3 = ARIMA(Barrels ~ trend(knots) + fourier(K = 3) + PDQ(0,0,0)),
+    K5 = ARIMA(Barrels ~ trend(knots) + fourier(K = 5) + PDQ(0,0,0)),
+    K6 = ARIMA(Barrels ~ trend(knots) + fourier(K = 6) + PDQ(0,0,0)),
+    K7 = ARIMA(Barrels ~ trend(knots) + fourier(K = 7) + PDQ(0,0,0)),
+    K8 = ARIMA(Barrels ~ trend(knots) + fourier(K = 8) + PDQ(0,0,0)),
+    K9 = ARIMA(Barrels ~ trend(knots) + fourier(K = 9) + PDQ(0,0,0)),
+    )
+```
+
+```{r}
+glance(fit_barrels3) |> select(.model, log_lik, AICc) |> arrange(AICc)
+```
+
+```{r}
+bind_rows(accuracy(fit_barrels2), accuracy(fit_barrels3)) |> filter(.model == "K6")
+```
+
+```{r}
+report(fit_barrels3 |> select("K6"))
+```
+
+### c
+
+Check the residuals of the final model using the gg_tsresiduals() function and a Ljung-Box test. Do they look sufficiently like white noise to continue? If not, try modifying your model, or removing the first few years of data.
+
+```{r}
+gg_tsresiduals(fit_barrels3 |> select("K6"), type = "response")
+```
+
+```{r}
+fit_barrels3 |> 
+  select("K6") |>  
+  augment() |> 
+  features(.innov, ljung_box, dof = 17, lag = 24) |> 
+  pull(lb_pvalue)
+```
+
+```{r}
+fit_barrels3 |>
+  select("K6") |> 
+  forecast(h = 52) |> 
+  autoplot(us_gasoline) 
+```
+
+## Exercise 6
+
+
+Electricity consumption is often modelled as a function of temperature. Temperature is measured by daily heating degrees and cooling degrees. Heating degrees is 18∘C minus the average daily temperature when the daily average is below 18∘C; otherwise it is zero. This provides a measure of our need to heat ourselves as temperature falls. Cooling degrees measures our need to cool ourselves as the temperature rises. It is defined as the average daily temperature minus 18∘C when the daily average is above 18∘C; otherwise it is zero. Let $y_t$ denote the monthly total of kilowatt-hours of electricity used, let $x_{1,t}$ denote the monthly total of heating degrees, and let $x_{2,t}$ denote the monthly total of cooling degrees.
+
+An analyst fits the following model to a set of such data:
+
+$$
+y^∗_t=\beta_1x^∗_{1,t}+\beta_2x^∗_{2,t}+\eta_t
+$$ 
+where 
+
+$$
+(1−\Phi_1B^{12}−\Phi2B^{24})(1−B)(1−B^{12})\eta_t=(1+\theta_1B)\epsilon_t
+$$ 
+and
+
+$$
+y^∗_t=log(y_t), \ x^∗_{1,t}=\sqrt{x_{1,t}} \; and \; x^∗_{2,t}=\sqrt{x_{2,t}}
+$$
+
+### a
+
+What sort of ARIMA model is identified for ηt?
+
+The corresponding ARIMA model is ARIMA(0,1,1)(2,1,0)\[12\]
+
+### b
+
+Explain what the estimates of β1 and β2 tell us about electricity consumption.
+
+Estimate $\beta_1$ is the increase in total energy consumption for one degree increase in heating degrees. Similarly, $\beta_2$ is the increase for one degree increase in cooling degrees. As $\beta_2$ (0.0208) is much larger than $\beta_1$ (0.0077) we can see that much more energy is expended on cooling than on heating homes.
+
+### c
+
+Write the equation in a form more suitable for forecasting.
+
+$$
+y^∗_t=\beta_1x^∗_{1,t}+\beta_2x^∗_{2,t}+\eta_t
+$$
+$$
+\log{y_t}=0.0077\sqrt{x_{1,t}}+0.0208\sqrt{x_{2,t}}+\eta_t
+$$
+where
+$$
+(1−\Phi_1B^{12}−\Phi_2B^{24})(1−B)(1−B^{12})\eta_t=(1+\theta_1B)\epsilon_t
+$$
+$$
+(1 − Φ_1B^{12} − Φ_2B^{24} − B + Φ_1B^{13} + Φ_2B^{25})(1 − B^{12}) η_t = (1 + θ_1B) ε_t
+$$
+$$
+(1 − Φ_1B^{12} − Φ_2B^{24} − B + Φ_1B^{13} + Φ_2B^{25} -  B^{12}(1 − Φ_1B^{12} − Φ_2B^{24} − B + Φ_1B^{13} + Φ_2B^{25}) η_t = (1 + θ_1B) ε_t
+$$
+$$
+(1 − Φ_1B^{12} − Φ_2B^{24} − B + Φ_1B^{13} + Φ_2B^{25} - (B^{12} − Φ_1B^{24} − Φ_2B^{36} − B^{13} + Φ_1B^{25} + Φ_2B^{37}) η_t = (1 + θ_1B) ε_t
+$$
+$$
+(1 − Φ_1B^{12} − Φ_2B^{24} − B + Φ_1B^{13} + Φ_2B^{25} - B^{12} + Φ_1B^{24} + Φ_2B^{36} + B^{13} - Φ_1B^{25} - Φ_2B^{37}) η_t = (1 + θ_1B) ε_t
+$$
+$$
+(1 − B − B^{12}(Φ_1 + 1)  + B^{13}(Φ_1 + 1) − B^{24}(Φ_2 - Φ_1) + B^{25}(Φ_2 - Φ_1) + Φ_2B^{36} - Φ_2B^{37}) η_t = (1 + θ_1B) ε_t
+$$
+$$
+(1 − B − (Φ_1 + 1)(B^{12} - B^{13}) − (Φ_2 - Φ_1)(B^{24} - B^{25}) + Φ_2(B^{36} - B^{37})) η_t = (1 + θ_1B) ε_t
+$$
+$$
+η_t − η_{t-1} − (Φ_1 + 1)(η_{t-12} - η_{t-13}) − (Φ_2 - Φ_1)( η_{t-24} - η_{t-25}) + Φ_2( η_{t-36} - η_{t-37}) = (1 + θ_1B) ε_t
+$$
+$$
+η_t = η_{t-1} + (Φ_1 + 1)(η_{t-12} - η_{t-13}) + (Φ_2 - Φ_1)( η_{t-24} - η_{t-25}) - Φ_2( η_{t-36} - η_{t-37}) + θ_1ε_{t-1} + ε_t 
+$$
+$$
+η_t = η_{t-1} + (-0.5373 + 1)(η_{t-12} - η_{t-13}) + (-0.4667 + 0.5373)( η_{t-24} - η_{t-25}) + 0.4667( η_{t-36} - η_{t-37}) - 0.5830ε_{t-1 }+ ε_t
+$$
+
+$$
+η_t = η_{t-1} + 0.4627(η_{t-12} - η_{t-13}) + 0.0706( η_{t-24} - η_{t-25}) + 0.4667(η_{t-36} - η_{t-37}) - 0.5830ε_{t-1 }+ ε_t
+$$
+
+### d
+
+Describe how this model could be used to forecast electricity demand for the next 12 months.
+
+
+### e
+
+Explain why the $η_t$ term should be modelled with an ARIMA model rather than modelling the data using a standard regression package. In your discussion, comment on the properties of the estimates, the validity of the standard regression results, and the importance of the $η_t$ model in producing forecasts.
+
+The $η_t$ term represents the error in models which are allowed to contain autocorrelation. This is in contrast with the standard error term $ε_t$ which is normally considered as white noise.
+
+From section 10.1:
+
+When we estimate the parameters from the model, we need to minimise the sum of squared $ε_t$ values. If we minimise the sum of squared $η_t$ values instead (which is what would happen if we estimated the regression model ignoring the autocorrelations in the errors), then several problems arise:
+
+- The estimated coefficients $\hat{β_0}$,…,$\hat{β_k}$ are no longer the best estimates, as some information has been ignored in the calculation
+- Any statistical tests associated with the model (e.g., t-tests on the coefficients) will be incorrect.
+- The AICc values of the fitted models are no longer a good guide as to which is the best model for forecasting.
+- In most cases, the p-values associated with the coefficients will be too small, and so some predictor variables will appear to be important when they are not. This is known as “spurious regression”.
+
+
+## Exercise 7
+
+For the retail time series considered in earlier chapters:
+
+### a
+
+Develop an appropriate dynamic regression model with Fourier terms for the seasonality. Use the AICc to select the number of Fourier terms to include in the model. (You will probably need to use the same Box-Cox transformation you identified previously.)
+
+```{r}
+set.seed(42)
+myseries <- aus_retail |>
+  filter(`Series ID` == sample(aus_retail$`Series ID`, 1))
+
+myseries |> autoplot(Turnover) +
+  labs(title = with(myseries, paste(State, Industry)))
+```
+The variance is non-constant so let's apply a box-cox transformation.
+
+```{r}
+lambda <- myseries |>
+  features(Turnover, features = guerrero) |> pull(lambda_guerrero)
+lambda
+```
+```{r}
+myseries_transformed <- myseries |> 
+  mutate(Turnover = box_cox(Turnover, lambda))
+myseries_transformed
+```
+
+
+
+```{r}
+myseries_transformed |> autoplot(Turnover) +
+  labs(title = with(myseries_transformed, paste(State, Industry)))
+```
+The variance appears more constant after transformation. The plot of Turnover looks like a good candidate for fitting knots to improve the model. 
+
+```{r}
+knots <- c(yearmonth("2008 Jun"), yearmonth("2011 Oct"))
+
+retail_fit <- myseries_transformed |> model(TSLM(Turnover ~ trend(knots)))
+
+autoplot(myseries_transformed, Turnover) +
+  geom_line(data = fitted(retail_fit), aes(y = .fitted), colour = "blue")
+```
+The maximum number for K is half of m, which is 12 here as the period is monthly.
+
+```{r}
+aus_retail_fit <- myseries |> 
+  model(
+    K3 = ARIMA(box_cox(Turnover, lambda) ~ trend(knots) + fourier(K = 3) + pdq(0:2,0,0:2) + PDQ(0:1,0,0:1)),
+    K4 = ARIMA(box_cox(Turnover, lambda) ~ trend(knots) + fourier(K = 4) + pdq(0:2,0,0:2) + PDQ(0:1,0,0:1)),
+    K5 = ARIMA(box_cox(Turnover, lambda) ~ trend(knots) + fourier(K = 5) + pdq(0:2,0,0:2) + PDQ(0:1,0,0:1)),
+    K6 = ARIMA(box_cox(Turnover, lambda) ~ trend(knots) + fourier(K = 6) + pdq(0:2,0,0:2) + PDQ(0:1,0,0:1)),
+  )
+glance(aus_retail_fit) |> arrange(AICc) |> select(State, Industry, .model, AIC)
+```
+
+And the winner is K = 6.
+
+```{r}
+aus_retail_fit_best <- aus_retail_fit |> select(K6)
+report(aus_retail_fit_best)
+```
+
+### b
+
+Check the residuals of the fitted model. Does the residual series look like white noise?
+
+```{r}
+gg_tsresiduals(aus_retail_fit_best)
+```
+The residuals appear like white noise with no significant spikes in the ACF.
+
+### c
+
+Compare the forecasts with those you obtained earlier using alternative models.
+
+```{r}
+fit <- myseries %>%
+ model(
+  Dynamic = ARIMA(box_cox(Turnover, lambda) ~ trend() + fourier(K = 6) + pdq(1,0,1) + PDQ(1,0,0)),
+  ARIMA = ARIMA(box_cox(Turnover, lambda)),
+  ETS = ETS(box_cox(Turnover, lambda))
+ )
+glance(fit) |> arrange(AICc)
+```
+What models are we comparing against?
+
+```{r}
+report(fit |> select(ARIMA))
+```
+
+```{r}
+report(fit |> select(ETS))
+```
+
+Mirror, mirror on the wall, who's the most accurate of them all?
+
+```{r}
+accuracy(fit) |> select(State, .model, RMSE, MAE, MAPE)
+```
+```{r}
+fit |> 
+ forecast(h = 12) |> 
+ autoplot(myseries |> tail(8 * 12), level = 80, alpha = 0.8)
+```
+Et, c'est fini.
