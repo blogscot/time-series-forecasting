@@ -56,7 +56,7 @@ aus_livestock |>
   pull()
 ```
 
-At first glance the graph seems to have a fairely constant variance, suggesting that transforming the data would not yield any benefit. To confirm this the the `guerrero lambda` value was evaluated to confirm this supposition.
+At first glance the graph seems to have a fairly constant variance, suggesting that transforming the data would not yield any benefit. To confirm this the the `guerrero lambda` value was evaluated to confirm this supposition.
 
 ```{r}
 aus_livestock |> 
