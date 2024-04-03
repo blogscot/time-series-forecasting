@@ -1,0 +1,857 @@
+---
+title: "Chapter 11"
+author: "Iain Diamond"
+format: 
+  html:
+    toc: true
+    code-fold: true
+---
+
+# Chapter 11
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = TRUE)
+```
+
+For when I get stuck [Drake-Firestorm](https://github.com/Drake-Firestorm/Forecasting-Principles-and-Practice/blob/master/Exercises/Chapter%2011.R)
+
+## Preamble
+
+In this section I'm examining the examples in the book in more depth to improve my understanding of these hierarchical models.
+
+```{r}
+#| echo: false
+library(fpp3)
+library(timetk)
+library(patchwork)
+```
+
+```{r}
+(tourism <- tsibble::tourism |>
+  mutate(State = recode(State,
+    `New South Wales` = "NSW",
+    `Northern Territory` = "NT",
+    `Queensland` = "QLD",
+    `South Australia` = "SA",
+    `Tasmania` = "TAS",
+    `Victoria` = "VIC",
+    `Western Australia` = "WA"
+  )))
+```
+
+```{r}
+(tourism_hts <- tourism |>
+  aggregate_key(State / Region, Trips = sum(Trips)))
+```
+
+```{r}
+tourism_hts |>
+  filter(is_aggregated(Region))
+```
+Even though we're filtering for aggregated Region data we still have aggregated state data. Why is that? 
+
+It's because tourism_hts has State, Region as its key, and you can't remove the key or part of the key from a tsibble.
+
+To remove the aggregated plot from the regional plots you have to explicitly remove the aggregated state data. See below.
+
+```{r}
+tourism_hts |>
+  filter(!is_aggregated(State), is_aggregated(Region))
+```
+
+```{r}
+tourism_hts |>
+  filter(!is_aggregated(State), is_aggregated(Region)) |>
+  autoplot(Trips) +
+  labs(y = "Trips ('000)",
+       title = "Australian tourism: national and states") +
+  facet_wrap(vars(State), scales = "free_y", ncol = 3) +
+  theme(legend.position = "none")
+```
+This is a bit weird! Why are we aggregating the region data then removing it? 
+
+Filtering the aggregated Region effectively sums the Trips data to the state level. Having the Region column in the tsibble no longer serves any purpose so it can be removed.
+
+```{r}
+tourism_hts |>
+  filter(State == "NT" | State == "QLD" |
+         State == "TAS" | State == "VIC") |>
+  filter(is_aggregated(Region)) |> 
+  select(-Region) |>
+  mutate(State = factor(State, levels=c("QLD","VIC","NT","TAS"))) |>
+  gg_season(Trips) +
+  facet_wrap(vars(State), nrow = 2, scales = "free_y")+
+  labs(y = "Trips ('000)")
+```
+## Prison
+
+```{r}
+(prison <- readr::read_csv("data/prison_population.csv") |>
+  mutate(Quarter = yearquarter(Date)) |>
+  select(-Date)  |>
+  as_tsibble(key = c(Gender, Legal, State, Indigenous),
+             index = Quarter) |>
+  relocate(Quarter))
+```
+```{r}
+(prison_gts <- prison |>
+  aggregate_key(Gender * Legal * State, Count = sum(Count)/1e3))
+```
+
+```{r, fig.width=10, fig.height=8}
+p1 <- prison_gts |>
+  filter(is_aggregated(Gender)) |>
+  ggplot(aes(x = Quarter, y = Count)) +
+  stat_summary(fun = sum, geom = "line") +  
+  labs(title = "Prison population: Total", y = "Number of prisoners ('000)") +
+  theme(legend.position = "none")
+
+p2 <- prison_gts |> 
+  filter(!is_aggregated(Gender)) |>
+  mutate(Gender = as.character(Gender)) |>
+  ggplot(aes(x = Quarter, y = Count, group = Gender, colour=Gender)) +
+  stat_summary(fun = sum, geom = "line") +
+  labs(title = "Gender", y = "Number of prisoners ('000)") + 
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
+
+p3 <- prison_gts |> 
+  filter(!is_aggregated(Legal)) |>
+  mutate(Legal = as.character(Legal)) |>
+  ggplot(aes(x = Quarter, y = Count, group = Legal, colour=Legal)) +
+  stat_summary(fun = sum, geom = "line") +
+  labs(title = "Legal", y = "") +
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
+
+p4 <- prison_gts |> 
+  filter(!is_aggregated(State)) |>
+  mutate(State = as.character(State)) |>
+  ggplot(aes(x = Quarter, y = Count, group = State, colour=State)) +
+  stat_summary(fun = sum, geom = "line") +
+  labs(title = "State", y = "") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+p1 / (p2 | p3 | p4 + plot_layout(guides = 'collect'))
+```
+TODO: combine the legends instead of hiding those for Gender and Legal.
+
+
+Here we remove the aggregated Gender data while keeping the aggregated Legal and State data.
+```{r}
+prison_gts |>
+  filter(!is_aggregated(Gender), is_aggregated(Legal), is_aggregated(State))
+```
+
+A mental model I find useful is when all the fields are aggregated you have, in this case, a total count of prisoners over time. By disaggregating Gender you can see this original count split into Male and Female lines. Similarly to see the data split by State you need only disaggregate the State column keeping the others aggregated.
+
+```{r}
+prison_gts |>
+  filter(!is_aggregated(Gender), is_aggregated(Legal), is_aggregated(State)) |> 
+  mutate(Gender = as.character(Gender)) |>
+  ggplot(aes(x = Quarter, y = Count, group = Gender, colour=Gender)) +
+  stat_summary(fun = sum, geom = "line") +
+  labs(title = "Prison population by gender",
+       y = "Number of prisoners ('000)")
+```
+Here we're effectively splitting the total aggregated count data into State and Gender parts, using facet_wrap to see the seperate plots per state.
+
+```{r}
+prison_gts |>
+  filter(!is_aggregated(Gender), is_aggregated(Legal), !is_aggregated(State)) |>
+  mutate(Gender = as.character(Gender)) |>
+  ggplot(aes(x = Quarter, y = Count, group = Gender, colour=Gender)) +
+  stat_summary(fun = sum, geom = "line") +
+  labs(title = "Prison population by state and gender",
+       y = "Number of prisoners ('000)") +
+  facet_wrap(~ as.character(State),
+             nrow = 2, scales = "free_y") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+Similarly, the total aggregated data is split by legal status and state.
+
+```{r}
+prison_gts |> 
+  filter(is_aggregated(Gender), !is_aggregated(Legal), !is_aggregated(State)) |>
+  mutate(`Legal Status` = as.character(Legal)) |>
+  ggplot(aes(x = Quarter, y = Count, group = `Legal Status`, colour=`Legal Status`)) +
+  stat_summary(fun = sum, geom = "line") +
+  labs(title = "Prison population by state and legal status",
+       y = "Number of prisoners ('000)") +
+  facet_wrap(~ as.character(State),
+             nrow = 2, scales = "free_y") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+In this case, we're actually just using the original prison data, combining two columns, and rescaling the count in order to get insight into the size of both gender and legal status in one plot.
+
+```{r}
+prison |>
+     select(-Indigenous) |> 
+     unite(Legal_Gender, c('Legal', 'Gender'), sep = ' / ') |> 
+     group_by(Quarter, State, Legal_Gender) |> 
+     summarise(Count = sum(Count) / 1e3, .groups = 'drop') |> 
+     mutate(State =  as.factor(State), 
+            `Legal status & Gender` = as.factor(Legal_Gender) ) |> 
+     ggplot(aes(x = Quarter, y = Count, group = `Legal status & Gender`, 
+                colour=`Legal status & Gender`)) +
+     stat_summary(fun = sum, geom = "line") +
+     facet_wrap(~ as.character(State), nrow = 2, scales = "free_y") +
+     theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+## Tourism
+
+```{r}
+tourism_full <- tourism |>
+  aggregate_key((State/Region) * Purpose, Trips = sum(Trips))
+```
+
+Let's start by looking at the total aggregated tourism numbers.
+
+```{r}
+tourism_full |> 
+  filter(is_aggregated(State), is_aggregated(Purpose)) |> 
+  ggplot(aes(x = Quarter, y = Trips)) +
+  stat_summary(fun = sum, geom = "line") +
+  labs(title = "Australian Tourism", y = "Trips ('000)")
+```
+
+Here we're effectively splitting the total aggregated data by Purpose.
+
+```{r}
+tourism_full |> 
+  filter(is_aggregated(State), !is_aggregated(Purpose)) |> 
+  mutate(Purpose = as.character(Purpose)) |> 
+  ggplot(aes(x = Quarter, y = Trips, group = Purpose, colour = Purpose)) +
+  stat_summary(fun = sum, geom = "line") +
+  labs(title = "Australian tourism: by purpose of travel",
+       y = "Trips ('000)") +
+  facet_wrap(~ as.character(Purpose), nrow = 2, scales = "free_y")
+```
+Now we break the data down by state and purpose.
+
+```{r fig.height=12, fig.width=10}
+tourism_full |> 
+  filter(!is_aggregated(State), !is_aggregated(Purpose)) |> 
+  mutate(Purpose = as.character(Purpose)) |> 
+  ggplot(aes(x = Quarter, y = Trips, group = Purpose, colour = Purpose)) +
+  stat_summary(fun = sum, geom = "line")  +
+  labs(title = "Australian tourism: by purpose of travel and state",
+       y = "Trips ('000)") +
+  facet_wrap(~ as.character(State), nrow = 4, scales = "free_y") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+## Forecasting
+
+### Tourism
+
+Note, the full tourism tsibble has 425 keys.
+```{r}
+tourism_full
+```
+
+We build a model for each of they 425 key (i.e. State, Purpose, Region) entries.
+```{r}
+(fit <- tourism_full |>
+  filter(year(Quarter) <= 2015) |>
+  model(base = ETS(Trips)) |>
+  reconcile(
+    bu = bottom_up(base),
+    ols = min_trace(base, method = "ols"),
+    mint = min_trace(base, method = "mint_shrink")
+  ))
+```
+
+Next we produce forecasts. The key is now (State, Purpose, Region, .model)
+
+```{r}
+(fc <- fit |> forecast(h = "2 years"))
+```
+
+As before let's start by looking at the total aggregated data, now with forecasts.
+
+```{r fig.height=6, fig.width=8}
+fc |>
+  filter(is_aggregated(State), is_aggregated(Region), is_aggregated(Purpose)) |>
+  autoplot(
+    tourism_full,
+    level = NULL
+  ) +
+  labs(y = "Trips ('000)") +
+  facet_wrap(vars(State), scales = "free_y")
+```
+Previously, we split the total aggregated data by State by including `!is_aggregated(State)` in the filter. This also has the effect of removing the aggregated plot from the group, but to be inline with the book we want to keep it in. 
+
+So, by not including State in the filter we're retaining the aggregated Trips per state, and also the aggregated Trips data at the national level which we just plotted above.
+
+In conclusion, when you filter using `is_aggregated(State)` you're keeping the aggregated data but dropping the disaggregated data. Alternatively filtering by `is_aggregated(!State)` drops the aggregated data while keeping the disaggregated data. Not filtering on State keeps both the aggregated and disaggregated parts.
+
+It may help to look at more closely at State, in particular its distinct values. Here we see that State has an entry for `aggregated`. We can keep or remove this entry using filter. The same principal applies to Region an Purpose columns.
+
+```{r}
+fc |> distinct(State)
+```
+
+
+To reinforce the earlier point, the aggregated Region Trips data are essentially generated state level data. Similarly, aggregated State Trips data are national data.
+
+Here, by aggregating Region and Purpose we can see the Trips data split by State but also including the aggregated State (i.e. national) data.
+
+```{r fig.height=6, fig.width=8}
+fc |>
+  filter(is_aggregated(Region), is_aggregated(Purpose)) |>
+  autoplot(
+    tourism_full |> filter(year(Quarter) >= 2011),
+    level = NULL
+  ) +
+  labs(y = "Trips ('000)") +
+  facet_wrap(vars(State), scales = "free_y")
+```
+Here we're aggregated State data, so we're seeing a national view of Purpose with forecasts.
+
+Interestingly, because we're aggregating the State data we're also aggregating the Region data. This lines up with the manner in which the data was originally aggregated hierarchically.
+
+```{r}
+fc |>
+  filter(is_aggregated(State), !is_aggregated(Purpose)) |>
+  autoplot(
+    tourism_full |> filter(year(Quarter) >= 2011),
+    level = NULL
+  ) +
+  labs(y = "Trips ('000)") +
+  facet_wrap(vars(Purpose), scales = "free_y")
+```
+
+Calculates accuracy of forecasts for Australian overnight trips.
+
+```{r}
+calculate_accuracy <- function(forecasts) {
+   forecasts |>
+    accuracy(
+      data = tourism_full,
+      measures = list(rmse = RMSE, mase = MASE)
+    ) |>
+    group_by(.model) |>
+    summarise(rmse = mean(rmse), mase = mean(mase))
+}
+```
+
+Notice, as Region is a child of State, and aggregating a parent aggregates the child, thus these two calculations are using exactly the same data.
+```{r}
+# Total
+fc |> filter(is_aggregated(State), is_aggregated(Region), is_aggregated(Purpose)) |> 
+  calculate_accuracy()
+
+fc |> filter(is_aggregated(State), is_aggregated(Purpose)) |> 
+  calculate_accuracy()
+```
+
+```{r}
+# Purpose
+fc |> filter(is_aggregated(State), is_aggregated(Region), !is_aggregated(Purpose)) |>
+  calculate_accuracy()
+```
+
+
+```{r}
+# State
+fc |> 
+  filter(!is_aggregated(State), is_aggregated(Region), is_aggregated(Purpose)) |>
+  calculate_accuracy()
+```
+
+
+```{r}
+# Regions
+fc |> 
+  filter(!is_aggregated(State), !is_aggregated(Region), is_aggregated(Purpose)) |>
+  calculate_accuracy()
+```
+
+
+```{r}
+# Bottom
+fc |> 
+  filter(!is_aggregated(State), !is_aggregated(Region), !is_aggregated(Purpose)) |>
+  calculate_accuracy()
+```
+
+
+```{r}
+# All series
+fc |> calculate_accuracy()
+```
+
+### Prison Population
+
+```{r}
+prison_fit <- prison_gts |>
+  filter(year(Quarter) <= 2014) |>
+  model(base = ETS(Count)) |>
+  reconcile(
+    bottom_up = bottom_up(base),
+    MinT = min_trace(base, method = "mint_shrink")
+  )
+
+prison_fc <- prison_fit |> forecast(h = 8)
+
+prison_fc |>
+  filter(is_aggregated(State), is_aggregated(Gender), is_aggregated(Legal)) |>
+  autoplot(prison_gts, alpha = 0.7, level = 90) +
+  labs(y = "Number of prisoners ('000)",
+       title = "Australian prison population (total)")
+```
+
+```{r fig.height=6, fig.width=8}
+prison_fc |>
+  filter(
+    .model %in% c("base", "MinT"),
+    !is_aggregated(State), is_aggregated(Legal), is_aggregated(Gender)
+  ) |>
+  autoplot(
+    prison_gts |> filter(year(Quarter) >= 2010), alpha = 0.7, level = 90
+  ) +
+  labs(title = "Prison population (by state)",
+       y = "Number of prisoners ('000)") +
+  facet_wrap(vars(State), scales = "free_y", ncol = 4) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+```{r}
+p1 <- prison_fc |>
+  filter(
+    .model %in% c("base", "MinT"),
+    is_aggregated(State), !is_aggregated(Legal), is_aggregated(Gender)
+  ) |>
+  autoplot(
+    prison_gts |> 
+      filter(year(Quarter) >= 2010), 
+    alpha = 0.8, level = 90) +
+  labs(title = "Prison population (by legal status)",
+       y = "Number of prisoners ('000)") +
+  facet_wrap(vars(Legal), scales = "free_y", nrow = 4, ncol = 4) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+p2 <- prison_fc |>
+  filter(
+    .model %in% c("base", "MinT"),
+    is_aggregated(State), is_aggregated(Legal), !is_aggregated(Gender)
+  ) |>
+  autoplot(
+    prison_gts |> 
+      filter(year(Quarter) >= 2010), 
+    alpha = 0.8, level = 90) +
+  labs(title = "Prison population (by gender)",
+       y = "") +
+  facet_wrap(vars(Gender), scales = "free_y", nrow = 4, ncol = 4) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+```{r fig.width=10, fig.height=4}
+(p1 | p2) + plot_layout(guides = 'collect')
+```
+
+```{r fig.width=10, fig.height=10}
+prison_fc |>
+  filter(State %in% c("NSW", "QLD", "VIC", "WA")) |>
+  filter(
+    .model %in% c("base", "MinT"),
+    !is_aggregated(State), !is_aggregated(Legal), !is_aggregated(Gender)
+  ) |>
+  autoplot(
+    prison_gts |> 
+    filter(State %in% c("NSW", "QLD", "VIC", "WA")) |>    
+    filter(year(Quarter) >= 2010), alpha = 0.8, level = 90) +
+  labs(title = "", y = "Number of prisoners ('000)") +
+  facet_wrap(Gender + Legal ~ State, scales = "free_y", nrow = 4, ncol = 4) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+```{r}
+calculate_accuracy <- function(forecasts, level) {
+     forecasts |>
+      accuracy(
+        data = prison_gts,
+        measures = list(mase = MASE, ss = skill_score(CRPS))
+      ) |>
+      group_by(.model) |>
+      summarise(mase = mean(mase), sspc = mean(ss) * 100) |> 
+    mutate(Level = level)
+  }
+```
+
+
+```{r}
+total_accuracy <- prison_fc |> filter(is_aggregated(State), is_aggregated(Gender), is_aggregated(Legal)) |>
+  calculate_accuracy(level = "Total") |> 
+  arrange(mase)
+
+state_accuracy <- prison_fc |> 
+  filter(!is_aggregated(State), is_aggregated(Gender), is_aggregated(Legal)) |>
+  calculate_accuracy(level = "State") |> 
+  arrange(mase)
+
+legal_accuracy <- prison_fc |> filter(is_aggregated(State), is_aggregated(Gender), !is_aggregated(Legal)) |>
+  calculate_accuracy(level = "Legal") |> 
+  arrange(mase)
+
+gender_accuracy <- prison_fc |> 
+  filter(is_aggregated(State), !is_aggregated(Gender), is_aggregated(Legal)) |>
+  calculate_accuracy(level = "Gender") |> 
+  arrange(mase)
+
+bottom_accuracy <- prison_fc |> 
+  filter(!is_aggregated(State), !is_aggregated(Gender), !is_aggregated(Legal)) |>
+  calculate_accuracy(level = "Bottom") |> 
+  arrange(mase)
+
+all_series_accuracy <- prison_fc |> 
+  calculate_accuracy(level = "All Series") |> 
+  arrange(mase)
+```
+
+```{r}
+bind_rows(total_accuracy, state_accuracy, legal_accuracy, gender_accuracy, bottom_accuracy, all_series_accuracy) |> 
+  relocate(Level)
+```
+
+## Exercise 1
+
+Consider the PBS data which has aggregation structure ATC1/ATC2 * Concession * Type.
+
+```{r}
+(pbs_full <- PBS |> 
+  mutate(Scripts = Scripts / 1e6) |> 
+  aggregate_key((ATC1/ATC2) * Concession * Type, Scripts = sum(Scripts)))
+```
+### a
+
+Produce plots of the aggregated Scripts data by Concession, Type and ATC1.
+
+```{r}
+pbs_full |>
+  filter(!is_aggregated(Concession),
+         is_aggregated(Type),
+         is_aggregated(ATC1)) |>
+  select(-Type,-ATC1,-ATC2) |>
+  autoplot(Scripts) +
+  labs(title = "Scripts by Concession")
+```
+
+```{r}
+pbs_full |>
+  filter(is_aggregated(Concession),
+         !is_aggregated(Type),
+         is_aggregated(ATC1)) |>
+  select(-Concession,-ATC1,-ATC2) |>
+  autoplot(Scripts) +
+  labs(title = "Scripts by Type")
+```
+
+```{r}
+pbs_full |>
+  filter(
+    is_aggregated(Concession),
+    is_aggregated(Type),
+    !is_aggregated(ATC1),
+    is_aggregated(ATC2)
+  ) |>
+  select(-Concession,-Type,-ATC2) |>
+  autoplot(Scripts) +
+  labs(title = "Scripts by ATC1")
+```
+
+```{r fig.height=12, fig.width=10}
+pbs_full |>
+  filter(
+    is_aggregated(Concession),
+    is_aggregated(Type),
+    !is_aggregated(ATC1),
+    is_aggregated(ATC2)
+  ) |>
+  select(-Concession,-Type,-ATC2) |>
+  autoplot(Scripts) +
+  labs(title = "Scripts by ATC1") +
+  facet_wrap(~ ATC1, scales = "free_y", ncol = 3) +
+  theme(legend.position = "none")
+```
+
+### b
+
+Forecast the PBS Scripts data using ETS, ARIMA and SNAIVE models, applied to all but the last three years of data.
+
+```{r}
+(pbs_hts <- PBS %>%
+  aggregate_key(ATC1/ATC2 * Concession * Type, Scripts = sum(Scripts)))
+```
+
+Looking at plots of ATC2 shows that a number contain zero values which will cause analysis problems if not addressed. As I understand it there are a couple of solutions: add 1 to all the values or instead add a small amount of random noise.
+
+```{r}
+pbs_hts |> 
+  filter(is_aggregated(Concession), !is_aggregated(ATC1), 
+         !is_aggregated(ATC2), is_aggregated(Type)) |> 
+  as_tibble() |> 
+  select(Month, ATC2, Scripts) |> 
+  mutate(ATC2 = as.factor(ATC2)) |> 
+  plot_time_series(
+    .date_var = date(Month), 
+    .value = Scripts, 
+    .facet_vars = ATC2,
+    .trelliscope = TRUE
+)
+```
+
+There are over 6000 rows with zero values for Scripts
+
+Let's introduce some random noise to obviate zero values issue.
+```{r}
+(num_zero_rows <- PBS |> 
+  filter(Scripts == 0) |> 
+  nrow())
+```
+
+
+```{r}
+PBS_non_zero <- PBS |> 
+  filter(Scripts == 0) |> 
+  mutate(Scripts = rnorm(n = num_zero_rows, mean = 0.1, sd = 0.05))
+
+(
+  PBS_adjusted <- PBS |> 
+  filter(Scripts != 0) |> 
+  bind_rows(PBS_non_zero)
+)
+```
+
+Now we build the hierarchical time series.
+
+```{r}
+(pbs_hts <- PBS_adjusted |>
+  aggregate_key(ATC1/ATC2 * Concession * Type, Scripts = sum(Scripts)))
+```
+
+Fit using training data
+
+```{r}
+training_end_date = "2005 Jun"
+
+(
+  pbs_fit <- pbs_hts |>
+    mutate(Scripts = Scripts / 1e3) |> 
+    filter(Month <= yearmonth(training_end_date)) |>
+    filter(
+      is_aggregated(Concession),
+      is_aggregated(ATC1),
+      is_aggregated(ATC2),
+      is_aggregated(Type)
+    ) |>
+    model(
+      ets = ETS(Scripts),
+      arima = ARIMA(Scripts),
+      snaive = SNAIVE(Scripts)
+    )
+)
+```
+
+And generate forecasts using test data
+
+```{r}
+(pbs_fc <- pbs_fit |> 
+   forecast(pbs_hts |> filter(ym(Month) > ym(training_end_date))))
+```
+
+```{r fig.height=6, fig.width=8}
+pbs_fc %>%
+  filter(is_aggregated(Concession),
+         is_aggregated(Type),
+         is_aggregated(ATC1)) |> 
+  autoplot(
+    pbs_hts |> filter(year(Month) >= 2000) |> 
+      mutate(Scripts = Scripts / 1e3),
+    alpha = 0.7,
+    level = 80
+  ) +
+  labs(y = "Scripts (000s)") +
+  facet_wrap(~ ATC1, scales = "free_y")
+```
+How good are our forecasts?
+
+```{r}
+calculate_accuracy <- function(forecasts, data, level) {
+     forecasts |>
+      accuracy(
+        data = data,
+        measures = list(mase = MASE, ss = skill_score(CRPS))
+      ) |>
+      group_by(.model) |>
+      summarise(mase = mean(mase), sspc = mean(ss) * 100) |> 
+    mutate(Level = level)
+  }
+
+pbs_fc |> 
+  filter(is_aggregated(Concession), is_aggregated(Type), is_aggregated(ATC1)) |> 
+  calculate_accuracy(data = pbs_hts, level = "Top Level") |> 
+  arrange(mase)
+```
+
+### c
+
+Reconcile each of the forecasts using MinT.
+
+#### ETS
+
+```{r}
+(
+  pbs_fit_ets_reconcile <- pbs_hts |>
+    filter(ym(Month) <= ym(training_end_date)) |>
+    filter(is_aggregated(Concession),
+           is_aggregated(Type)) |>      
+    model(ets = ETS(Scripts)) |>
+    reconcile(
+      bu = bottom_up(ets),
+      mint = min_trace(ets, method = "mint_shrink")
+    )
+)
+```
+
+```{r}
+(pbs_fc_ets_reconcile <- pbs_fit_ets_reconcile |> forecast(h = "3 years"))
+```
+
+```{r fig.height=5, fig.width=8}
+pbs_fc_ets_reconcile |>
+  filter(is_aggregated(Concession),
+         is_aggregated(Type),
+         is_aggregated(ATC1)) |>
+  mutate(Scripts = Scripts / 1e3, .mean = .mean / 1e3) |>
+  autoplot(pbs_hts |>
+             filter(year(Month) >= 2000) |>
+             mutate(Scripts = Scripts / 1e3), alpha = 0.7, level = 80) +
+  labs(y = "Scripts ('000s)",
+       title = 'PBS Australia Forecast (2000 – 2008)') + 
+     ylim(8500, 20000)
+```
+
+#### ARIMA
+
+```{r}
+(
+  pbs_fit_arima_reconcile <- pbs_hts |>
+    filter(ym(Month) <= ym(training_end_date)) |>
+    filter(is_aggregated(Concession),
+           is_aggregated(Type)) |>    
+    model(arima = ARIMA(Scripts)) |>
+    reconcile(
+      bu = bottom_up(arima),
+      mint = min_trace(arima, method = "mint_shrink")
+    )
+)
+```
+
+```{r}
+(pbs_fc_arima_reconcile <- pbs_fit_arima_reconcile |> forecast(h = "3 years"))
+```
+
+```{r fig.height=5, fig.width=8}
+pbs_fc_arima_reconcile |>
+  filter(is_aggregated(Concession),
+         is_aggregated(Type),
+         is_aggregated(ATC1)) |>
+  mutate(Scripts = Scripts / 1e3, .mean = .mean / 1e3) |>
+  autoplot(pbs_hts |>
+             filter(year(Month) >= 2000) |>
+             mutate(Scripts = Scripts / 1e3), alpha = 0.7, level = 80) +
+  labs(y = "Scripts ('000s)",
+       title = 'PBS Australia Forecast (2000 – 2008)') + 
+     ylim(9000, 19000)
+```
+
+#### SNAIVE
+
+```{r}
+(
+  pbs_fit_snaive_reconcile <- pbs_hts |>
+    filter(ym(Month) <= ym(training_end_date)) |>
+    filter(is_aggregated(Concession),
+           is_aggregated(Type)) |>
+    model(snaive = SNAIVE(Scripts)) |>
+    reconcile(bu = bottom_up(snaive),
+              mint = min_trace(snaive, method = "mint_shrink"))
+)
+```
+
+```{r}
+(pbs_fc_snaive_reconcile <- pbs_fit_snaive_reconcile |> forecast(h = "3 years"))
+```
+
+```{r fig.height=5, fig.width=8}
+pbs_fc_snaive_reconcile |>
+  filter(is_aggregated(Concession),
+         is_aggregated(Type),
+         is_aggregated(ATC1)) |>
+  mutate(Scripts = Scripts / 1e3, .mean = .mean / 1e3) |>
+  autoplot(pbs_hts |>
+             filter(year(Month) >= 2000) |>
+             mutate(Scripts = Scripts / 1e3), alpha = 0.7, level = 80) +
+  labs(y = "Scripts ('000s)",
+       title = 'PBS Australia Forecast (2000 – 2008)') + 
+     ylim(9000, 18000)
+```
+
+### d
+
+Which type of model works best on the test set?
+
+```{r}
+ets_accuracy <- pbs_fc_ets_reconcile |> 
+  filter(is_aggregated(Concession), is_aggregated(Type), is_aggregated(ATC1)) |> 
+  calculate_accuracy(data = pbs_hts, level = "ETS") 
+
+arima_accuracy <- pbs_fc_arima_reconcile |> 
+  filter(is_aggregated(Concession), is_aggregated(Type), is_aggregated(ATC1)) |> 
+  calculate_accuracy(data = pbs_hts, level = "ARIMA")
+
+snaive_accuracy <- pbs_fc_snaive_reconcile |> 
+  filter(is_aggregated(Concession), is_aggregated(Type), is_aggregated(ATC1)) |> 
+  calculate_accuracy(data = pbs_hts, level = "SNAIVE")
+
+bind_rows(ets_accuracy, arima_accuracy, snaive_accuracy) |> 
+  arrange(mase) |> 
+  relocate(Level)
+```
+The results show that the ETS model works best on the test set.
+
+### e
+
+Does the reconciliation improve the forecast accuracy?
+
+In each of the three cases, that is using ETS, ARIMA and SNAIVE, reconciliation didn't improve the forecast accuracy.
+
+
+### f
+
+Why doesn’t the reconciliation make any difference to the SNAIVE forecasts?
+
+> The MinT approach combines information from all the base forecasts in the aggregation structure
+> ... MinT being based on an estimator that minimizes variances.
+
+My guess is that reconciliation doesn't make any difference because the SNAIVE forecasts are already coherent as they are based on the bottom-up approach.
+
+```{r}
+snaive_accuracy
+```
+
+The forecasts for the bottom-up, reconciliation and snaive forecasts are identical.
+
+```{r}
+pbs_fc_snaive_reconcile |>
+  filter(is_aggregated(Concession),
+         is_aggregated(Type),
+         is_aggregated(ATC1)) |>
+  mutate(Scripts = Scripts / 1e3, .mean = .mean / 1e3) |>
+  autoplot(level = 80) +
+  labs(y = "Scripts ('000s)",
+       title = 'PBS Australia ETS Forecast (2000 – 2008)') + 
+     ylim(9000, 18000)
+```
+
+
