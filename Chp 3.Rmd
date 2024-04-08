@@ -276,7 +276,7 @@ x11_dcmp <- myseries |>
 
 autoplot(x11_dcmp)
 ```
-The trend shows an extend bump in turnover around 1996-7 which was evident to some extent in the original time series.
+The trend shows an extended bump in turnover around 1996-7 which was evident to some extent in the original time series.
 
 ## Question 9
 
