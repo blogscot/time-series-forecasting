@@ -690,12 +690,8 @@ The Ljung-Box p-value is just less than 0.05 meaning that the residuals cannot b
 Generate forecasts for the next year of data and plot these along with the actual data for 2005. Comment on the forecasts.
 
 ```{r}
-
-us_gasoline_2005 <- us_gasoline |> filter(year(Week) == "2005")
-
 forecast(gasoline_fit, h = 52) |>
-  autoplot() +
-  autolayer(us_gasoline_2005, Barrels)
+  autoplot(us_gasoline |> filter(year(Week) == "2005"))
 ```
 For the most part the model predicts the number of barrels supplied although in the third quarter of 2005 the number dropped dramatically, recovering slowly over the quarter.
 

@@ -6,15 +6,259 @@ format:
     code-fold: true
 ---
 
-# Chapter 11
+# Chapter 12
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = TRUE)
 ```
 
+# Videos
+[What is the Prophet Model?](https://youtu.be/2XFro0nIHQM)
+[What is the Vector Autoregressive (VAR) Model?](https://youtu.be/0-FKPJ5KxSo)
+[Basic Concept of Vector Auto Regressive (VAR) Model](https://youtu.be/b1cJex-apHo)
+
 ```{r}
-#| echo: false
 library(fpp3)
-library(timetk)
-library(patchwork)
 ```
+
+## Exercise 1
+
+Compare STL and Dynamic Harmonic Regression forecasts for one of the series in the pedestrian data set.
+
+`pedrestrian`, a dataset containing the hourly pedestrian counts from 2015-01-01 to 2016-12-31 at 4 sensors in the city of Melbourne.
+
+```{r}
+pedestrian |> 
+  autoplot(Count) +
+  facet_wrap(vars(Sensor), scales = "free_y") +
+  theme(legend.position = "none") +
+  labs(title = "Melbourne Pedrestrian Counts")
+```
+
+Given that 2016 was a leap year, for a full 2-year set of readings there would be `$(365 + 366) * 24 = 17544` readings. However, we're missing quite a few readings.
+
+```{r}
+pedestrian  |> count(Sensor)
+```
+
+```{r}
+sensor_name = "QV Market-Elizabeth St (West)"
+
+market_elizabeth_ts <- pedestrian |> 
+  filter(Sensor == sensor_name)
+
+market_elizabeth_ts |> 
+  count_gaps(.full = TRUE)
+```
+
+We can see that for our chosen sensor we have 26 missing readings.
+
+Let's add in some sensible data for the time dates. For the missing day we'll copy over the previous days readings and for the other two readings we'll just use the mean value.
+
+
+```{r}
+(missing_day <- market_elizabeth_ts |> 
+  filter(date(Date_Time) == "2015-12-30") |> 
+  mutate(Date_Time = Date_Time + days(1),
+         Date = date(Date_Time)))
+```
+```{r}
+(market_elizabeth_updated_ts <- bind_rows(market_elizabeth_ts, missing_day) |> 
+  fill_gaps(Count = mean(Count)))
+```
+We now have a complete set of sensor readings to work with.
+
+### STL forecasts
+
+```{r fig.height=8, fig.width=8}
+market_elizabeth_updated_ts |>
+  model(
+    STL(sqrt(Count) ~ season(period = 24) +
+                      season(period = 24 * 7) +
+                      season(period = 24 * 365.25),
+        robust = FALSE)
+  ) |>
+  components() |>
+  autoplot() + labs(x = "Observation")
+```
+```{r}
+# Forecasts from STL+ETS decomposition
+my_dcmp_spec <- decomposition_model(
+  STL(sqrt(Count) ~ season(period = 24) +
+                    season(period = 7 * 24) +
+                    season(period = 24 * 365.25),
+      robust = FALSE),
+  ETS(season_adjust ~ season("N"))
+)
+
+# forecast the next 4 weeks
+(market_elizabeth_updated_fit <- market_elizabeth_updated_ts |> model(my_dcmp_spec))
+```
+
+```{r}
+gg_tsresiduals(market_elizabeth_updated_fit, type = "response")
+```
+
+
+```{r}
+accuracy(market_elizabeth_updated_fit) |> select(.model, RMSE, MAE, MAPE)
+```
+
+Accuracy Table
+
+RMSE      MAE       MAPE
+116.6422	48.73962	14.29078 - season period = 24 * 365.25
+74.38767	41.08467	11.67456 - ditto + robust = TRUE
+54.86714	35.69785	10.76232 - ditto + robust = FALSE
+38.08355	25.75324	7.758479 - season period = 24 * 365.25 + robust = FALSE
+
+Let's forecast the next 4 weeks.
+
+```{r}
+market_elizabeth_updated_fit |> forecast(h = 7 * 24 * 4) |> 
+  autoplot(market_elizabeth_updated_ts |> tail(7 * 24 * 14))
+```
+The sensor forecasts have a couple of major problems. Firstly, the positive trend is completely unexpected and doesn't seem reasonable given past readings, and secondly the seriously wide confidence levels. This model is not working, not working at all!
+
+### Dynamic Harmonic Regression forecasts
+
+```{r}
+market_elizabeth_updated_fit2 <- market_elizabeth_updated_ts |>
+  model(
+    dhr = ARIMA(sqrt(Count) ~ PDQ(0, 0, 0) + pdq(d = 0) +
+                  fourier(period = 24, K = 10) +
+                  fourier(period = 7 * 24, K = 5) +
+                  fourier(period = 24 * 365.25, K = 4)))
+```
+
+
+#### a
+
+Try modifying the order of the Fourier terms to minimize the AICc value.
+
+```{r}
+glance(market_elizabeth_updated_fit2) |> select(.model, AICc, BIC)
+```
+AICc      BIC       K
+76220.75	76461.58 (6,4,3)
+76093.58	76349.95 (7,4,3)		
+75790.48	76039.07 (5,4,3)	
+75319	    75614.18 (8,4,3)
+75299.16	75609.87 (9,4,3)
+75269.48	75595.72 (10,4,3)	
+
+
+76220.75	76461.58 (6,4,3)
+76113.41	76369.78 (6,5,3)
+
+76073.59	76345.49 (6,5,4)
+75832.96	76166.96 (10,5,4)
+
+```{r}
+gg_tsresiduals(market_elizabeth_updated_fit)
+```
+
+
+```{r}
+market_elizabeth_updated_fit2 |> forecast(h = 24 * 7 * 4) |>   
+  autoplot(market_elizabeth_updated_ts |> tail(7 * 24 * 14))
+```
+
+#### b
+
+Check the residuals for each model. Do they capture the available information in the data?
+
+Neither model does particularly well in terms of residuals which suggests that the confidence levels can't be relied upon.
+
+#### c
+
+Which of the two sets of forecasts are best? Explain.
+
+The Dynamic Harmonic Regression model produces forecasts that look reasonable in contrast with the STL forecasts which just looks wrong.
+
+
+## Exercise 2
+
+Consider the weekly data on US finished motor gasoline products supplied (millions of barrels per day) (series us_gasoline):
+
+Fit a dynamic harmonic regression model to these data. How does it compare to the regression model you fitted in Exercise 5 in Section 7.10?
+
+
+```{r}
+us_gasoline_data <- us_gasoline |> 
+  filter(year(Week) < "2005") 
+
+us_gasoline_data |> autoplot(Barrels)
+```
+
+```{r}
+gasoline_fit <- us_gasoline_data |>
+  model(TSLM(Barrels ~ trend() + fourier(K = 7)))
+
+ gg_tsresiduals(gasoline_fit)
+```
+
+
+```{r}
+glance(gasoline_fit) |> select(AIC, AICc, CV)
+```
+
+```{r}
+(gasoline_dhr_fit <- us_gasoline_data |>
+  model(dhr = ARIMA(sqrt(Barrels) ~ PDQ(0, 0, 0) + pdq(d = 0) +
+                  fourier(period = 52, K = 7))
+        ))
+
+glance(gasoline_dhr_fit)
+```
+K = 8 -2206.745	-2205.305
+K = 7 -2207.517	-2206.326
+K = 6 -2195.566	-2194.599
+
+
+```{r}
+ gg_tsresiduals(gasoline_dhr_fit)
+```
+
+```{r}
+forecast(gasoline_fit, h = 52 * 3) |>
+  autoplot(us_gasoline |> filter(year(Week) >= 2005, year(Week) <= 2007))
+
+forecast(gasoline_dhr_fit, h = 52 * 3) |>
+  autoplot(us_gasoline |> filter(year(Week) >= 2005, year(Week) <= 2007))
+```
+
+Examining the forecast plots the TLSM model tracks with the training data fairly well, which isn't necessary a good sign as the model could be over-fitting. However, the dynamic harmonic regression model tracks the training very poorly with the bulk of the forecasts significantly lower than actual numbers.
+
+
+
+
+```{r}
+sunspots <- sunspot.year |> as_tsibble()
+fit <- sunspots |>
+  model(NNETAR(sqrt(value)))
+fit |>
+  forecast(h = 30) |>
+  autoplot(sunspots) +
+  labs(x = "Year", y = "Counts", title = "Yearly sunspots")
+```
+
+
+## Exercise 3
+
+Experiment with using NNETAR() on your retail data and other data we have considered in previous chapters.
+
+```{r}
+(lynx_ts <- lynx |>  
+     as_tsibble() |>
+     rename(Year = index, 
+            Trappings = value))
+```
+
+```{r}
+lynx_ts |> model(NNETAR(sqrt(Trappings))) |>
+     forecast(h = 10) |>
+     autoplot(lynx_ts) +
+     labs(title = "Yearly Lynx trappings")
+```
+
