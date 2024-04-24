@@ -2,7 +2,7 @@
 title: "Time Series"
 author: "Iain Diamond"
 date: "25/1/2024"
-format: 
+format:
   html:
     code-fold: true
 ---
@@ -20,7 +20,7 @@ library(fpp3)
 Use filter() to find what days corresponded to the peak closing price for each of the four stocks in gafa_stock.
 
 ```{r}
-gafa_stock |> 
+gafa_stock |>
   features(Close, features = list(max=max))
 ```
 
@@ -47,9 +47,9 @@ I just noticed that filter accepts commas; I've been using ampersands up until n
 Here, I found this!
 
 ```{r}
-gafa_stock |> 
-  select(Close) |> 
-  group_by(Symbol) |> 
+gafa_stock |>
+  select(Close) |>
+  group_by(Symbol) |>
   filter(Close == max(Close))
 ```
 
@@ -107,14 +107,16 @@ Create a tsibble from us_total with year as the index and state as the key.
 
 ```{r}
 state_timeseries <- us_total |>
-  as_tsibble(index = year, key = state)
+  as_tsibble(index = year, key = state) |> 
+  rename(State = state,
+         Year = year)
 ```
 
 Plot the annual natural gas consumption by state for the New England area (comprising the states of Maine, Vermont, New Hampshire, Massachusetts, Connecticut and Rhode Island).
 
 ```{r}
 state_timeseries |>
-  filter(state == c("Maine", "Vermont", "New Hampshire", "Massachusetts",
+  filter(State %in% c("Maine", "Vermont", "New Hampshire", "Massachusetts",
                    "Connecticut", "Rhode Island")) |>
   mutate(y = y / 1000) |>
   autoplot(y) +
